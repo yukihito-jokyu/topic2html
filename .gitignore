@@ -1,2 +1,6 @@
 # mac
 .DS_Store
+
+# Local task worktrees and Codex handoff records
+/.worktrees/
+/.codex/task-session.local.md
