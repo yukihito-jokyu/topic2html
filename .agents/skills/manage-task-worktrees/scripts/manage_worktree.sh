@@ -100,7 +100,7 @@ load_issue() {
       head -1 |
       awk '{print $2}'
   )"
-  [ -n "$task_id" ] || die "Issue #${issue_number}にTask ID Markerがありません"
+  [ -n "$task_id" ] || die "Issue #${issue_number}にTask ID Markerがありません。初回起動準備としてIssue作成工程との接続を確認し、<!-- knowledge-task-id: Lx-My-Sz -->を同期してください"
   printf '%s\n' "$task_id" | grep -Eq '^L[0-9]+-M[0-9]+-S[0-9]+$' ||
     die "Issue #${issue_number}はtracking Taskです: ${task_id}。親Issueからleafへの展開手順に従ってください"
 
@@ -112,7 +112,7 @@ load_issue() {
     sed -nE 's/.*planning-snapshot: ([0-9a-f]{40}).*/\1/p' "$ISSUE_BODY_FILE" |
       head -1
   )"
-  [ -n "$planning_snapshot" ] || die "Issue #${issue_number}にPlanning snapshot SHAがありません"
+  [ -n "$planning_snapshot" ] || die "Issue #${issue_number}にPlanning snapshot SHAがありません。初回起動準備として既存Commitを再利用できるか確認し、<!-- planning-snapshot: <40桁SHA> -->を同期してください"
 
   owner_paths="$(
     awk -F '|' '
@@ -274,13 +274,13 @@ validate_active_path_conflicts() {
 
 validate_ignore_rules() {
   git -C "$primary_root" check-ignore -q --no-index .worktrees/.probe ||
-    die "$primary_root/.gitignoreに /.worktrees/ を追加してください"
+    die "$primary_root/.gitignoreに /.worktrees/ がありません。初回起動準備として管理機能導入用branchでignore規則をbaseへ追加してください"
   base_ignore="$(git -C "$primary_root" show "${base_sha}:.gitignore" 2>/dev/null)" ||
     die "基準refに.gitignoreがありません: $base_ref"
   printf '%s\n' "$base_ignore" | grep -Fxq '/.worktrees/' ||
-    die "基準refの.gitignoreに /.worktrees/ がありません"
+    die "基準refの.gitignoreに /.worktrees/ がありません。初回起動準備として管理機能導入用branchをbaseへ統合してください"
   printf '%s\n' "$base_ignore" | grep -Fxq '/.codex/task-session.local.md' ||
-    die "基準refの.gitignoreに /.codex/task-session.local.md がありません"
+    die "基準refの.gitignoreに /.codex/task-session.local.md がありません。初回起動準備として管理機能導入用branchをbaseへ統合してください"
 }
 
 validate_ref_required_skills() {

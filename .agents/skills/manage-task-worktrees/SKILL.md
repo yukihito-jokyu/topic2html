@@ -28,13 +28,14 @@ Task Issueを1つのブランチ、worktree、VS Codeウィンドウ、Codexセ�
 1. 変更操作の前に[ライフサイクル](references/lifecycle.md)を全文読む。
 2. 指定Issueがtracking Taskなら、`plan`や`start`を実行せず、Issue本文と固定Planning snapshotから子孫leafを再帰的に展開する。
 3. leafの依存DAG、Gate、基準ref、Owner Path、既存worktreeを照合し、現在のready frontierと将来waveをユーザーへ提案する。
-4. ユーザーが選んだ現在waveの各leafについてPrimary checkoutから `plan` を実行する。機械判定に加え、複雑Globと共有資産のPath競合を意味的に監査する。
-5. wave全体の作成内容、並行・直列理由、Merge順、外部操作を示し、必要な承認を得てから各leafの `start` を実行する。後続waveへ承認を持ち越さない。
-6. VS Codeが開いたら、ユーザーへ各ウィンドウでCodexの開始と引継ぎファイルの読込みを依頼する。生成された開始プロンプトでは `$conduct-task-discussion` と `$explain-with-context` も必ず指定する。
-7. 作業完了時は `finish`、Issue固有の検証、別サブエージェントの独立レビューを実行する。利用者の明示承認前はCommit候補への一時登録もCommitも行わない。
-8. Commit承認後は成果物OwnerごとにCommitを分ける。push、PR作成、Issue更新は、利用者の依頼範囲と外部操作の承認を確認してから行う。
-9. Mergeは、PR作成とは別の外部変更である。利用者がMergeを明示的に承認するまで実行せず、PR作成やレビュー完了をMerge承認と解釈しない。
-10. Merge後に限り、明示承認を得て `remove` を実行する。
+4. leaf IssueのTask ID Marker、Planning snapshot記録、基準refの必須Skill、またはignore規則が欠けている場合は、初回起動準備の未完了として扱う。[ライフサイクルの初回起動準備](references/lifecycle.md#初回起動準備)に従い、計画固定Commitの再利用と管理機能を導入するbase Commitの要否を別々に判断する。利用者に未説明の内部前提を補わせる質問だけを返して作業を止めない。
+5. ユーザーが選んだ現在waveの各leafについてPrimary checkoutから `plan` を実行する。機械判定に加え、複雑Globと共有資産のPath競合を意味的に監査する。
+6. wave全体の作成内容、並行・直列理由、Merge順、外部操作を示し、必要な承認を得てから各leafの `start` を実行する。後続waveへ承認を持ち越さない。
+7. VS Codeが開いたら、ユーザーへ各ウィンドウでCodexの開始と引継ぎファイルの読込みを依頼する。生成された開始プロンプトでは `$conduct-task-discussion` と `$explain-with-context` も必ず指定する。
+8. 作業完了時は `finish`、Issue固有の検証、別サブエージェントの独立レビューを実行する。利用者の明示承認前はCommit候補への一時登録もCommitも行わない。
+9. Commit承認後は成果物OwnerごとにCommitを分ける。push、PR作成、Issue更新は、利用者の依頼範囲と外部操作の承認を確認してから行う。
+10. Mergeは、PR作成とは別の外部変更である。利用者がMergeを明示的に承認するまで実行せず、PR作成やレビュー完了をMerge承認と解釈しない。
+11. Merge後に限り、明示承認を得て `remove` を実行する。
 
 GitHub Issue、ネットワーク、GUI、push、PR、削除を伴う操作では、それぞれ既存の承認規則に従う。
 
@@ -99,6 +100,7 @@ handoff: <worktree>/.codex/task-session.local.md
 
 ## 安全境界
 
+- Task用worktreeを手動作成しない。通常の`git worktree add`を使えるのは、[初回起動準備](references/lifecycle.md#初回起動準備)で管理機能導入用branchを作る場合だけとする。
 - dirtyなworktreeを削除しない。
 - `--merged-into`へHEADが含まれないworktreeを削除しない。
 - `--force`、`git reset --hard`、未確認のbranch削除を使わない。

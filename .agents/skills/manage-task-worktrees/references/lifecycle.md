@@ -59,6 +59,20 @@ rtk bash .agents/skills/manage-task-worktrees/scripts/manage_worktree.sh start 2
 rtk bash .agents/skills/manage-task-worktrees/scripts/manage_worktree.sh open 28
 ```
 
+## 初回起動準備
+
+leaf Issueの機械識別欄、基準refの必須Skill、またはignore規則がない場合は、Taskの依存不成立ではなく、Issue作成工程とworktree管理導入工程の接続漏れとして扱う。利用者が内部形式を知っている前提で停止理由だけを返さず、次の順に復旧する。
+
+1. Planning snapshotと実行baseを区別する。Planning snapshotはTask構成、依存、Gate、Ownerを固定したCommitであり、実行baseはTask worktreeを開始するCommitである。実行baseはPlanning snapshotを履歴に含み、さらにworktree管理用Skillとignore規則を含んでよい。
+2. 現在のTask Map、議論記録、接続台帳を含む既存Commitを確認する。現在の計画資料に、そのCommit以後の未Commit差分がなく、Issue本文とも一致する場合は、新しい計画Commitを作らず既存CommitをPlanning snapshotとして再利用する。単に最新Commitという理由だけで選ばない。
+3. GitHub Issue更新が利用者の依頼範囲に含まれる場合は、Task ID Marker、Planning snapshot SHA、固定リンクをIssueへ同期する。含まれない場合は、必要な外部変更と影響を説明して承認を得る。
+4. 実行baseに必須Skill、`/.worktrees/`、`/.codex/task-session.local.md`のignore規則がなければ、管理機能導入用の分離branchで補う。このbootstrap branchはTask成果物のOwner branchではない。Task用`start`がまだ利用できない初回に限り、利用者の承認を得てPrimary checkoutから通常の`git worktree add`で隔離worktreeを作成できる。
+5. 既存Planning snapshotを再利用できない場合だけ、同じ管理用branchでsnapshot候補も作る。Commit、統合、push、Issue更新はそれぞれの承認境界を守る。
+6. 管理機能導入Commitを含むrefを実行baseとし、Planning snapshotがその履歴に含まれることを確認する。
+7. Primary checkoutから`plan`を再実行し、通常の依存・Gate・Owner監査へ戻る。Task用worktreeを手動作成して検査を迂回しない。
+
+「Task成果物を利用者の承認前にCommitしない」という規則と、開始前のPlanning snapshotは区別する。ただし、Planning snapshotであっても未承認のCommitを自動作成してよいという意味ではない。既存Commitの再利用を先に検討し、不要なCommitを要求しない。
+
 同じTaskのbranchとworktreeが正しく存在する場合、`start`は破壊せず再開として扱う。別Pathで同じbranchがcheckoutされている場合は停止する。
 
 ## 親Issueからleafへの展開
@@ -204,6 +218,8 @@ rtk bash .agents/skills/manage-task-worktrees/scripts/manage_worktree.sh remove 
 ## 障害時
 
 - Issue Marker（実行対象Taskを識別するIssue本文の印）がない: tracking Issue（複数Taskの進捗だけをまとめる管理用Issue）の可能性があるため開始しない。実際の成果物を持たない親Issueで作業を始めないためである。
+- leaf TaskであることをIssue本文とTask Mapから確認できるのにIssue Markerがない: [初回起動準備](#初回起動準備)へ戻り、Issue作成工程との接続を修復する。
+- 基準refに必須Skillまたはignore規則がない: [初回起動準備](#初回起動準備)へ戻り、管理機能導入用branchを実行baseへ統合する。Task worktreeの手動作成では迂回しない。
 - Task IDがleafでない: 親Taskは進捗管理用なので開始せず、「親Issueからleafへの展開」を実行する。
 - 依存Commitがない: 依存IssueへEvidenceを記録する。
 - Gate Commitがない: Gate確認セッションへ戻る。
