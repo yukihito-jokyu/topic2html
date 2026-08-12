@@ -110,14 +110,6 @@ read_tasks_from_file() {
   printf '%s' "$tasks"
 }
 
-read_tasks_from_snapshot() {
-  local snapshot=$1 source tasks
-  source=$(rtk git -C "$ROOT" show "${snapshot}:docs/task-map.md") || abort_with "snapshotからTask Mapを読めません: $snapshot"
-  tasks=$(parse_tasks "$source")
-  validate_tasks "$tasks"
-  printf '%s' "$tasks"
-}
-
 task_field() {
   jq -r --arg id "$1" --arg field "$2" '.[] | select(.id == $id) | .[$field]' <<<"$TASKS_JSON"
 }
@@ -315,8 +307,6 @@ dependency_rows() {
   done
 }
 
-fixed_url() { printf 'https://github.com/%s/blob/%s/%s' "$1" "$2" "$3"; }
-
 human_progress() {
   local kind=$1 text
   if [[ $kind == S ]]; then
@@ -364,7 +354,7 @@ EOF
 
 generated_wrap() {
   local content=${2%$'\n'}
-  printf '<!-- knowledge-task-id: %s -->\n<!-- generated-content:start -->\n<!-- planning-snapshot: %s -->\n%s\n<!-- generated-content:end -->\n' "$1" "$SNAPSHOT" "$content"
+  printf '<!-- knowledge-task-id: %s -->\n<!-- generated-content:start -->\n%s\n<!-- generated-content:end -->\n' "$1" "$content"
 }
 
 state_for() {
@@ -388,8 +378,6 @@ tracking_body() {
 - Task ID: \`$id\`
 - 親Task: $parent
 - 区分: $([[ $kind == L ]] && printf '大分類tracking' || printf '中分類tracking')
-- Planning snapshot commit SHA: \`$SNAPSHOT\`
-- Task Map固定リンク: $(fixed_url "$REPO" "$SNAPSHOT" 'docs/task-map.md')
 - 原典Issue: #$ROOT_ISSUE
 - 関連する決定ID: 決定$(decision_for "$id")
 
@@ -431,8 +419,6 @@ leaf_body() {
 - 親Issue: $(issue_link "$parent_number" "$parent")
 - タスク名: $name
 - タスク種別: \`$type\`
-- Planning snapshot commit SHA: \`$SNAPSHOT\`
-- Task Map固定リンク: $(fixed_url "$REPO" "$SNAPSHOT" 'docs/task-map.md')
 - 原典Issue: #$ROOT_ISSUE
 - 関連する原典章: Issue #1、および決定${decision}に記録された対応章
 - 関連する決定ID: 決定${decision}・034〜037
@@ -443,7 +429,7 @@ ${name}ことで、\`${deliverable}\`を完成させる。
 
 ## 原典との差分
 
-- 固定入力: Issue #1、Planning snapshotのTask Map、決定${decision}、直接依存の承認済み成果物
+- 入力: Issue #1、現在のTask Map、決定${decision}、直接依存の承認済み成果物
 - 原典で決定済みだが未実施の成果物: $deliverable
 - このleafで決める未確定事項: Task名が要求する詳細化または実装に限定する
 - 選び直さない事項: Issue #1とTask Mapで確定した責務境界、依存DAG、Gate／Release、Codex／CLI境界
@@ -485,13 +471,11 @@ ${name}ことで、\`${deliverable}\`を完成させる。
 | --- | --- | --- |
 ${rows%$'\n'}
 
-- 後続接続の固定リンク: $(fixed_url "$REPO" "$SNAPSHOT" 'docs/task-connections.md')
-
 ## 着手判定
 
 | 確認項目 | 結果・Evidence |
 | --- | --- |
-| Planning snapshot SHAとTask Map固定リンクが一致する | 未確認 |
+| 現在のTask MapとIssueの依存関係・Gate・成果物Ownerが一致する | 着手時に確認 |
 | 着手依存TaskのMerge commit | 着手時に記録 |
 | 必要なGateの通過記録、またはGate前Taskであること | 着手時に記録 |
 | worktree起点SHA | 着手時に記録 |
@@ -504,7 +488,6 @@ ${rows%$'\n'}
 
 | 項目 | 内容 |
 | --- | --- |
-| planning baseline SHA | \`$SNAPSHOT\` |
 | worktree起点SHA | 着手時に確定 |
 | Branch | 着手時に確定 |
 | 所有Path／Glob | \`$path\` |
@@ -513,7 +496,7 @@ ${rows%$'\n'}
 | 直列化するTaskと理由 | Task Mapの直接依存・Merge順に従う |
 | Merge前提 | 直接依存の必要状態、Gate通過、Task固有検証合格 |
 | Merge順 | Task Mapの承認済みDAGに従う |
-| 統合先 | planning baselineを含む統合branch |
+| 統合先 | Task Mapの依存順に従う統合branch |
 
 ## 検証
 
@@ -529,7 +512,7 @@ ${rows%$'\n'}
 - [ ] 作業を停止する
 - [ ] Issue内で新しい依存、Path、設計判断を決めない
 - [ ] Task MapまたはGate記録の修正案を議論記録へ残す
-- [ ] 必要な再承認後、Planning snapshotとIssueを同期する
+- [ ] 必要な再承認後、Task MapとIssueを同期する
 
 ## 関連Issue・PR
 
@@ -609,7 +592,7 @@ update_issue() {
 root_children_block() {
   local lines='' id number checked
   while IFS= read -r id; do number=$(mapping_get "$id"); [[ $(state_for "$id") == CLOSED ]] && checked=x || checked=' '; lines+="- [$checked] $(issue_link "$number" "$id")"$'\n'; done < <(jq -r '.[]|select(.id|test("^L[0-9]+$"))|.id' <<<"$TASKS_JSON")
-  printf '<!-- task-map-children:start -->\n## Task Map: 大分類Issue\n\nPlanning snapshotに基づく直下の大分類tracking Issueです。Gate／ReleaseはIssue化していません。\n\n%s<!-- task-map-children:end -->' "$lines"
+  printf '<!-- task-map-children:start -->\n## Task Map: 大分類Issue\n\n現在のTask Mapに基づく直下の大分類tracking Issueです。Gate／ReleaseはIssue化していません。\n\n%s<!-- task-map-children:end -->' "$lines"
 }
 
 update_root_issue() {
@@ -636,8 +619,6 @@ verify_all() {
   while IFS= read -r id; do
     issue=$(jq --arg id "$id" '.[$id]' <<<"$managed"); body=$(jq -r '.body // ""' <<<"$issue"); expected_title="[$id] $(task_field "$id" name)"
     [[ $(jq -r '.title' <<<"$issue") == "$expected_title" ]] || abort_with "タイトル不一致: $id"
-    [[ $body == *"<!-- planning-snapshot: $SNAPSHOT -->"* ]] || abort_with "snapshot不一致: $id"
-    [[ $body == *"$(fixed_url "$REPO" "$SNAPSHOT" 'docs/task-map.md')"* ]] || abort_with "固定リンク不一致: $id"
     if [[ $(task_kind "$id") == S ]]; then
       for heading in タスク情報 目的 原典との差分 実施内容 成果物と所有 完了条件 対象外 依存関係 着手判定 worktree・Merge 検証 差異を発見した場合 関連Issue・PR; do [[ $body == *"## $heading"* ]] || abort_with "leaf必須Section欠落: $id $heading"; done
     else
@@ -688,13 +669,12 @@ render_connections() {
 
 main() {
   local kind id number issue root_issue
-  MODE=check REPO=$REPO_DEFAULT SNAPSHOT=''
+  MODE=check REPO=$REPO_DEFAULT
   while (($#)); do
     case $1 in
       --check) MODE=check ;; --apply) MODE=apply ;; --verify) MODE=verify ;; --render-connections) MODE=render_connections ;;
       --repo) shift; (($#)) || abort_with '--repoに値が必要です'; REPO=$1 ;;
-      --snapshot) shift; (($#)) || abort_with '--snapshotに値が必要です'; SNAPSHOT=$1 ;;
-      -h|--help) printf 'Usage: task_issue_sync.sh [--check|--apply|--verify|--render-connections] --snapshot SHA [--repo OWNER/REPO]\n'; return ;;
+      -h|--help) printf 'Usage: task_issue_sync.sh [--check|--apply|--verify|--render-connections] [--repo OWNER/REPO]\n'; return ;;
       *) abort_with "未知の引数: $1" ;;
     esac
     shift
@@ -702,17 +682,12 @@ main() {
 
   require_command jq 'Task MapとGitHub Issueの文字列をJSONとして安全に処理するため'
   require_supported_versions
-  if [[ $MODE != render_connections ]]; then
-    require_command rtk '固定snapshotのGit操作を記録付きで実行するため'
-    require_command git '固定snapshotからTask Mapを読み取るため'
-  fi
   if [[ $MODE == apply || $MODE == verify ]]; then
     require_command gh 'GitHub Issueを作成・更新・照合するため'
   fi
   if [[ $MODE == render_connections ]]; then TASKS_JSON=$(read_tasks_from_file); validate_paths; render_connections; return; fi
-  [[ $SNAPSHOT =~ ^[0-9a-f]{40}$ ]] || abort_with '--snapshotに40桁SHAが必要です'
-  TASKS_JSON=$(read_tasks_from_snapshot "$SNAPSHOT"); validate_paths
-  if [[ $MODE == check ]]; then printf 'CHECK OK L=6 M=19 S=116 TOTAL=141 snapshot=%s\n' "$SNAPSHOT"; return; fi
+  TASKS_JSON=$(read_tasks_from_file); validate_paths
+  if [[ $MODE == check ]]; then printf 'CHECK OK L=6 M=19 S=116 TOTAL=141\n'; return; fi
 
   ISSUES_JSON=$(gh_json); MANAGED_JSON=$(managed_issues "$ISSUES_JSON"); title_conflicts
   MAPPING_JSON=$(jq 'map_values(.number)' <<<"$MANAGED_JSON")
