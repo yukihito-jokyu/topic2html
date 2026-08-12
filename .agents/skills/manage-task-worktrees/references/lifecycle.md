@@ -7,7 +7,7 @@
 - `/.worktrees/`と`/.codex/task-session.local.md`が`.gitignore`に登録されている。
 - 実行対象は`Lx-My-Sz`形式のleaf Task Issueである。
 - 現在のTask Mapと接続台帳を依存DAG・Gate・Ownerの正本とし、GitHub Issue本文を実行用の同期コピーとして照合する。依存関係、Gate、成果物Ownerに差異があれば開始しない。
-- GitHub Issue本文のTask ID Marker（そのIssueが実行対象Taskであることを示す識別欄）を確認する。Task ID Markerは、進捗管理だけを行う親Issueを誤って実行しないために必要である。
+- GitHub Issue本文のTask ID欄を確認する。コメント形式のTask ID Markerは必須にしない。
 - 基準refと作成・再開するworktreeの双方に、`manage-task-worktrees`、`conduct-task-discussion`、`explain-with-context`の3つのSkillが存在する。開始プロンプトだけが存在し、実際の手順書を読めない状態を防ぐために必要である。
 
 ## 状態遷移
@@ -34,7 +34,7 @@
 - 依存Taskを統合した専用integration refから開始する。
 - `origin/main`へ未統合だが、承認済みの共通起点Commitがある。
 
-依存Issueはclosedだけでは不十分である。Issueのhuman-progress領域に統合Commitを記録し、そのCommitが基準refに含まれることを確認する。
+依存Issueはclosedだけでは不十分である。Issueのhuman-progress領域に統合Commitが記録されていれば、そのCommitが基準refに含まれることを確認する。記録がない場合は、Task IDから導出するTask branchのHEADが基準refに含まれることを確認する。
 
 Gate依存があるTaskは`--gate-commit <sha>`を指定する。スクリプトはGate Commitが基準refに含まれることを確認する。Gateの意味的な合格判定は行わない。
 
@@ -61,11 +61,11 @@ rtk bash .agents/skills/manage-task-worktrees/scripts/manage_worktree.sh open 28
 
 ## 初回起動準備
 
-leaf Issueの機械識別欄、基準refの必須Skill、またはignore規則がない場合は、Taskの依存不成立ではなく、Issue作成工程とworktree管理導入工程の接続漏れとして扱う。利用者が内部形式を知っている前提で停止理由だけを返さず、次の順に復旧する。
+基準refの必須Skillまたはignore規則がない場合は、Taskの依存不成立ではなく、worktree管理導入工程の接続漏れとして扱う。利用者が内部形式を知っている前提で停止理由だけを返さず、次の順に復旧する。
 
 1. 現在のTask Map、議論記録、接続台帳とIssue本文を照合し、依存関係、Gate、成果物Ownerが一致することを確認する。
 2. 実行baseに必須Skill、`/.worktrees/`、`/.codex/task-session.local.md`のignore規則がなければ、管理機能導入用の分離branchで補う。このbootstrap branchはTask成果物のOwner branchではない。Task用`start`がまだ利用できない初回に限り、Primary checkoutから通常の`git worktree add`で隔離worktreeを作成できる。
-3. Primary checkoutから`plan`を再実行し、通常の依存・Gate・Owner監査へ戻る。Task用worktreeを手動作成して検査を迂回しない。
+3. 管理機能導入Commitを含むrefを実行baseとし、Primary checkoutから`plan`を再実行して通常の依存・Gate・Owner監査へ戻る。Task用worktreeを手動作成して検査を迂回しない。
 
 同じTaskのbranchとworktreeが正しく存在する場合、`start`は破壊せず再開として扱う。別Pathで同じbranchがcheckoutされている場合は停止する。
 
@@ -77,7 +77,7 @@ tracking Issueを指定された場合はworktreeを作成せず、次の順で�
 2. `Lx`または`Lx-My`の子を同じ方法で再帰的に辿り、`Lx-My-Sz`の子孫leafを列挙する。子IssueはIssue本文のgenerated領域にある「直下の子Issue」だけから辿る。
 3. 各子のTask IDと親IDが親Issueおよび現在のTask Mapと一致することを確認する。依存関係、Gate、成果物Ownerに差異があれば開始しない。
 4. 現在のTask Mapと接続台帳を読み、着手依存、完了・Merge依存、Gate、Owner Path、Merge順を復元する。現在のIssue本文だけから新しい依存を推測しない。
-5. 依存Issueの状態、human-progressの統合Commit、baseへの包含、Gate Commit、既存worktreeを確認し、現在開始できるleafをready frontierとする。
+5. 依存Issueの状態、human-progressの統合CommitまたはTask branch、baseへの包含、Gate Commit、既存worktreeを確認し、現在開始できるleafをready frontierとする。
 6. ready frontier以降は、先行Taskの統合により解放される条件付きの将来waveとして示す。先行統合前に将来waveのbase SHAを確定しない。
 7. 現在waveの候補だけをユーザーへ提示し、選択後に各leafの`plan`を実行する。tracking Issueへ`plan`や`start`を実行しない。
 
@@ -211,11 +211,10 @@ rtk bash .agents/skills/manage-task-worktrees/scripts/manage_worktree.sh remove 
 
 ## 障害時
 
-- Issue Marker（実行対象Taskを識別するIssue本文の印）がない: tracking Issue（複数Taskの進捗だけをまとめる管理用Issue）の可能性があるため開始しない。実際の成果物を持たない親Issueで作業を始めないためである。
-- leaf TaskであることをIssue本文とTask Mapから確認できるのにIssue Markerがない: [初回起動準備](#初回起動準備)へ戻り、Issue作成工程との接続を修復する。
+- Task ID欄がない: Issue本文とTask Mapからleaf Taskであることを確認できなければ開始しない。コメント形式のIssue Markerは要求しない。
 - 基準refに必須Skillまたはignore規則がない: [初回起動準備](#初回起動準備)へ戻り、管理機能導入用branchを実行baseへ統合する。Task worktreeの手動作成では迂回しない。
 - Task IDがleafでない: 親Taskは進捗管理用なので開始せず、「親Issueからleafへの展開」を実行する。
-- 依存Commitがない: 依存IssueへEvidenceを記録する。
+- 依存Commitがない: human-progressまたはTask branchを確認する。
 - Gate Commitがない: Gate確認セッションへ戻る。
 - 基準refにCommitがない: integration順を修正し、refを更新する。
 - Pathが既に存在する: 登録済みworktreeとbranchを確認し、推測で削除しない。

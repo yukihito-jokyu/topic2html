@@ -27,7 +27,7 @@ Task Issueを1つのブランチ、worktree、VS Codeウィンドウ、Codexセ�
 1. 変更操作の前に[ライフサイクル](references/lifecycle.md)を全文読む。
 2. 指定Issueがtracking Taskなら、`plan`や`start`を実行せず、Issue本文と現在のTask Mapから子孫leafを再帰的に展開する。
 3. leafの依存DAG、Gate、基準ref、Owner Path、既存worktreeを照合し、現在のready frontierと将来waveをユーザーへ提案する。
-4. leaf IssueのTask ID Marker、基準refの必須Skill、またはignore規則が欠けている場合は、初回起動準備の未完了として扱う。[ライフサイクルの初回起動準備](references/lifecycle.md#初回起動準備)に従い、管理機能を導入するbase Commitの要否を判断する。利用者に未説明の内部前提を補わせる質問だけを返して作業を止めない。
+4. 基準refの必須Skillまたはignore規則が欠けている場合は、初回起動準備の未完了として扱う。[ライフサイクルの初回起動準備](references/lifecycle.md#初回起動準備)に従い、管理機能を導入するbase Commitの要否を判断する。利用者に未説明の内部前提を補わせる質問だけを返して作業を止めない。
 5. ユーザーが選んだ現在waveの各leafについてPrimary checkoutから `plan` を実行する。機械判定に加え、複雑Globと共有資産のPath競合を意味的に監査する。
 6. wave全体の作成内容、並行・直列理由、Merge順、外部操作を示し、`plan`が合格した各leafの `start` を続けて実行する。worktree作成のための利用者承認待ちは挟まない。
 7. VS Codeが開いたら、ユーザーへ各ウィンドウでCodexの開始と引継ぎファイルの読込みを依頼する。生成された開始プロンプトでは `$conduct-task-discussion` と `$explain-with-context` も必ず指定する。
