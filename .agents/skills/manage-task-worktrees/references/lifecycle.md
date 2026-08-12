@@ -34,7 +34,7 @@
 - 依存Taskを統合した専用integration refから開始する。
 - `origin/main`へ未統合だが、承認済みの共通起点Commitがある。
 
-依存Issueはclosedだけでは不十分である。Issueのhuman-progress領域に統合Commitが記録されていれば、そのCommitが基準refに含まれることを確認する。記録がない場合は、Task IDから導出するTask branchのHEADが基準refに含まれることを確認する。
+leaf依存Issueはclosedだけでは不十分である。Issueのhuman-progress領域に統合Commitが記録されていれば、そのCommitが基準refに含まれることを確認する。記録がない場合は、Task IDから導出するTask branchのHEADが基準refに含まれることを確認する。依存Issueが親Taskの場合は、親をcloseしたり親専用の統合Commitを作ったりせず、直下の子Issueを再帰的に辿り、すべての子孫leafがこの条件を満たすことを確認する。
 
 GateはIssueとTask Mapで確認する参考情報であり、スクリプトはGate通過Commitの指定や基準refへの包含確認を行わず、Gateの状態で開始を停止しない。
 
@@ -179,11 +179,11 @@ rtk bash .agents/skills/manage-task-worktrees/scripts/manage_worktree.sh finish 
 
 ## Commit承認後
 
-利用者が明示的に承認した変更だけを、成果物Ownerごとに分けてCommitする。push、PR作成、Issue更新はCommit承認と同一の操作ではないため、利用者の依頼範囲と外部操作の承認を別に確認する。
+利用者が明示的に承認した変更だけを、成果物Ownerごとに分けてCommitする。push、PR作成、Issue更新はCommit承認と同一の操作ではないため、利用者の依頼範囲と外部操作の承認を別に確認する。Primary checkoutのlocal `main`へ直接Mergeしない。
 
 ## PR作成・統合後の記録
 
-PR作成やレビュー完了はMergeの承認ではない。利用者がMergeを明示的に承認するまでMergeせず、承認後にだけ実行する。
+PR作成やレビュー完了はMergeの承認ではない。利用者がMergeを明示的に承認するまでMergeせず、承認後にだけリモートの`main`へPRをMergeする。Merge後はPrimary checkoutで `git pull origin main` を実行し、リモートの統合Commitをlocal `main`へ取得する。
 
 Issueへ少なくとも次を記録する。
 
