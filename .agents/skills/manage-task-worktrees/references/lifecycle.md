@@ -179,11 +179,11 @@ rtk bash .agents/skills/manage-task-worktrees/scripts/manage_worktree.sh finish 
 
 ## Commit承認後
 
-利用者が明示的に承認した変更だけを、成果物Ownerごとに分けてCommitする。push、PR作成、Issue更新はCommit承認と同一の操作ではないため、利用者の依頼範囲と外部操作の承認を別に確認する。
+利用者が明示的に承認した変更だけを、成果物Ownerごとに分けてCommitする。push、PR作成、Issue更新はCommit承認と同一の操作ではないため、利用者の依頼範囲と外部操作の承認を別に確認する。Primary checkoutのlocal `main`へ直接Mergeしない。
 
 ## PR作成・統合後の記録
 
-PR作成やレビュー完了はMergeの承認ではない。利用者がMergeを明示的に承認するまでMergeせず、承認後にだけ実行する。
+PR作成やレビュー完了はMergeの承認ではない。利用者がMergeを明示的に承認するまでMergeせず、承認後にだけリモートの`main`へPRをMergeする。Merge後はPrimary checkoutで `git pull origin main` を実行し、リモートの統合Commitをlocal `main`へ取得する。
 
 Issueへ少なくとも次を記録する。
 

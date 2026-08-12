@@ -32,8 +32,8 @@ Task Issueを1つのブランチ、worktree、VS Codeウィンドウ、Codexセ�
 6. wave全体の作成内容、並行・直列理由、Merge順、外部操作を示し、`plan`が合格した各leafの `start` を続けて実行する。worktree作成のための利用者承認待ちは挟まない。
 7. VS Codeが開いたら、ユーザーへ各ウィンドウでCodexの開始と引継ぎファイルの読込みを依頼する。生成された開始プロンプトでは `$conduct-task-discussion` と `$explain-with-context` も必ず指定する。
 8. 作業完了時は `finish`、Issue固有の検証、別サブエージェントの独立レビューを実行する。利用者の明示承認前はCommit候補への一時登録もCommitも行わない。
-9. Commit承認後は成果物OwnerごとにCommitを分ける。push、PR作成、Issue更新は、利用者の依頼範囲と外部操作の承認を確認してから行う。
-10. Mergeは、PR作成とは別の外部変更である。利用者がMergeを明示的に承認するまで実行せず、PR作成やレビュー完了をMerge承認と解釈しない。
+9. Commit承認後は成果物OwnerごとにCommitを分ける。push、PR作成、Issue更新は、利用者の依頼範囲と外部操作の承認を確認してから行う。CommitをPrimary checkoutのlocal `main`へ直接Mergeしない。
+10. Mergeは、PR作成とは別の外部変更である。利用者がMergeを明示的に承認するまで実行せず、PR作成やレビュー完了をMerge承認と解釈しない。承認後はリモートの`main`へPRをMergeし、Primary checkoutでは `git pull origin main` で統合結果を取得する。
 11. Merge後に限り、明示承認を得て `remove` を実行する。
 
 公開GitHub Issueの読取りは認証なしのREST APIで行う。private Issueの読取り、push、PR、削除など認証または外部変更を伴う操作では、それぞれ既存の承認規則に従う。
