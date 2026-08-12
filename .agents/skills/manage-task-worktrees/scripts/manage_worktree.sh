@@ -6,10 +6,14 @@ SKILL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 HANDOFF_TEMPLATE="$SKILL_ROOT/references/session-handoff-template.md"
 REQUIRED_SKILLS_PROMPT_HEADING='## Codex開始プロンプト（必須3スキル・版1）'
 ISSUE_BODY_FILE=""
+ISSUE_JSON_FILE=""
 
 cleanup() {
   if [ -n "$ISSUE_BODY_FILE" ] && [ -f "$ISSUE_BODY_FILE" ]; then
     rm -f "$ISSUE_BODY_FILE"
+  fi
+  if [ -n "$ISSUE_JSON_FILE" ] && [ -f "$ISSUE_JSON_FILE" ]; then
+    rm -f "$ISSUE_JSON_FILE"
   fi
 }
 trap cleanup EXIT
@@ -67,9 +71,25 @@ require_primary_checkout() {
 }
 
 load_repository_slug() {
-  need_command gh
-  repo_slug="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)" ||
-    die "GitHub repositoryを特定できません。gh auth statusとoriginを確認してください"
+  origin_url="$(git -C "$primary_root" remote get-url origin 2>/dev/null)" ||
+    die "origin remoteを取得できません"
+  repo_slug="$origin_url"
+  repo_slug="${repo_slug#https://github.com/}"
+  repo_slug="${repo_slug#http://github.com/}"
+  repo_slug="${repo_slug#git@github.com:}"
+  repo_slug="${repo_slug#ssh://git@github.com/}"
+  repo_slug="${repo_slug%.git}"
+  printf '%s\n' "$repo_slug" | grep -Eq '^[^/[:space:]]+/[^/[:space:]]+$' ||
+    die "GitHubのorigin remoteからowner/repositoryを特定できません: $origin_url"
+}
+
+load_github_issue_json() {
+  requested_issue="$1"
+  need_command curl
+  need_command jq
+  curl --fail --silent --show-error --location \
+    --header 'Accept: application/vnd.github+json' \
+    "https://api.github.com/repos/${repo_slug}/issues/${requested_issue}"
 }
 
 validate_issue_number() {
@@ -89,11 +109,15 @@ load_issue() {
   fi
   ISSUE_BODY_FILE="$(mktemp "${TMPDIR:-/tmp}/manage-task-worktrees.XXXXXX")"
 
-  gh issue view "$issue_number" --repo "$repo_slug" --json body --jq .body >"$ISSUE_BODY_FILE" ||
-    die "Issue #${issue_number}を取得できません"
-  issue_title="$(gh issue view "$issue_number" --repo "$repo_slug" --json title --jq .title)"
-  issue_state="$(gh issue view "$issue_number" --repo "$repo_slug" --json state --jq .state)"
-  issue_url="$(gh issue view "$issue_number" --repo "$repo_slug" --json url --jq .url)"
+  ISSUE_JSON_FILE="$(mktemp "${TMPDIR:-/tmp}/manage-task-worktrees-issue.XXXXXX")"
+  load_github_issue_json "$issue_number" >"$ISSUE_JSON_FILE" ||
+    die "公開GitHub APIからIssue #${issue_number}を取得できません。ネットワーク接続とIssueの公開状態を確認してください"
+  jq -r '.body // ""' "$ISSUE_JSON_FILE" >"$ISSUE_BODY_FILE"
+  issue_title="$(jq -r '.title' "$ISSUE_JSON_FILE")"
+  issue_state="$(jq -r '.state | ascii_upcase' "$ISSUE_JSON_FILE")"
+  issue_url="$(jq -r '.html_url' "$ISSUE_JSON_FILE")"
+  rm -f "$ISSUE_JSON_FILE"
+  ISSUE_JSON_FILE=""
 
   task_id="$(task_id_from_file "$ISSUE_BODY_FILE")"
   [ -n "$task_id" ] || die "Issue #${issue_number}にTask IDがありません。Issue本文とTask Mapからleaf Taskであることを確認してください"
@@ -201,17 +225,20 @@ validate_dependencies() {
 
   for dep_issue in $(dependency_issue_numbers); do
     dep_body_file="$(mktemp "${TMPDIR:-/tmp}/manage-task-dependency.XXXXXX")"
-    gh issue view "$dep_issue" --repo "$repo_slug" --json body --jq .body >"$dep_body_file"
+    dep_json_file="$(mktemp "${TMPDIR:-/tmp}/manage-task-dependency-json.XXXXXX")"
+    load_github_issue_json "$dep_issue" >"$dep_json_file" ||
+      die "公開GitHub APIから依存Issue #${dep_issue}を取得できません。ネットワーク接続とIssueの公開状態を確認してください"
+    jq -r '.body // ""' "$dep_json_file" >"$dep_body_file"
     dep_task_id="$(task_id_from_file "$dep_body_file")"
     [ -n "$dep_task_id" ] || die "依存Issue #${dep_issue}にTask IDがありません"
 
     if is_ancestor_task "$dep_task_id" "$task_id"; then
       tracking_context_summary="${tracking_context_summary}#${dep_issue}:${dep_task_id} "
-      rm -f "$dep_body_file"
+      rm -f "$dep_body_file" "$dep_json_file"
       continue
     fi
 
-    dep_state="$(gh issue view "$dep_issue" --repo "$repo_slug" --json state --jq .state)"
+    dep_state="$(jq -r '.state | ascii_upcase' "$dep_json_file")"
     [ "$dep_state" = "CLOSED" ] || die "着手依存Issue #${dep_issue}が未完了です: $dep_state"
 
     dep_commit="$(find_dependency_commit "$dep_body_file")"
@@ -221,7 +248,7 @@ validate_dependencies() {
     else
       dep_evidence="human-progress"
     fi
-    rm -f "$dep_body_file"
+    rm -f "$dep_body_file" "$dep_json_file"
 
     [ -n "$dep_commit" ] || die "依存Issue #${dep_issue}に統合Commitがありません。human-progressまたはTask branchを確認してください"
     git -C "$primary_root" cat-file -e "${dep_commit}^{commit}" 2>/dev/null ||

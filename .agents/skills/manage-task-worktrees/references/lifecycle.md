@@ -3,7 +3,7 @@
 ## 前提
 
 - Primary checkoutのリポジトリ直下から実行する。
-- `git`、`gh`、`code`を利用でき、`gh auth status`が成功する。
+- `git`、`curl`、`jq`、`code`を利用できる。公開GitHub Issueは認証なしのREST APIで読むため、`gh`の導入・認証は前提にしない。
 - `/.worktrees/`と`/.codex/task-session.local.md`が`.gitignore`に登録されている。
 - 実行対象は`Lx-My-Sz`形式のleaf Task Issueである。
 - 現在のTask Mapと接続台帳を依存DAG・Gate・Ownerの正本とし、GitHub Issue本文を実行用の同期コピーとして照合する。依存関係、Gate、成果物Ownerに差異があれば開始しない。

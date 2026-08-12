@@ -36,7 +36,7 @@ Task Issueを1つのブランチ、worktree、VS Codeウィンドウ、Codexセ�
 10. Mergeは、PR作成とは別の外部変更である。利用者がMergeを明示的に承認するまで実行せず、PR作成やレビュー完了をMerge承認と解釈しない。
 11. Merge後に限り、明示承認を得て `remove` を実行する。
 
-GitHub Issue、ネットワーク、GUI、push、PR、削除を伴う操作では、それぞれ既存の承認規則に従う。
+公開GitHub Issueの読取りは認証なしのREST APIで行う。private Issueの読取り、push、PR、削除など認証または外部変更を伴う操作では、それぞれ既存の承認規則に従う。
 
 ## 親Issueからの開始
 
