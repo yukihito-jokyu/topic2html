@@ -7,6 +7,7 @@
 - `/.worktrees/`と`/.codex/task-session.local.md`が`.gitignore`に登録されている。
 - 実行対象は`Lx-My-Sz`形式のleaf Task Issueである。
 - 現在のTask Mapと接続台帳を依存DAG・Gate・Ownerの正本とし、GitHub Issue本文を実行用の同期コピーとして照合する。依存関係、Gate、成果物Ownerに差異があれば開始しない。
+- Owner Pathが`TBD（G0通過後に物理Path／Globを確定し、Ready判定前に解消）`だけであるG0前Taskは、物理Pathを確定する成果物そのものを作るために`plan`と`start`を許可する。これ以外の`TBD`または`未確定`は停止する。この繰延記法を使ったTaskは、G0後の実装TaskをReadyにする前に物理Path／GlobをTask MapとIssueへ反映する。
 - GitHub Issue本文のTask ID欄を確認する。コメント形式のTask ID Markerは必須にしない。
 - 基準refと作成・再開するworktreeの双方に、`manage-task-worktrees`、`conduct-task-discussion`、`explain-with-context`の3つのSkillが存在する。開始プロンプトだけが存在し、実際の手順書を読めない状態を防ぐために必要である。
 

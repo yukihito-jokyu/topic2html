@@ -99,6 +99,11 @@ validate_issue_number() {
   esac
 }
 
+owner_paths_are_g0_deferred() {
+  printf '%s\n' "$1" |
+    grep -Eq '^TBD（G0通過後に物理Path／Globを確定し、Ready判定前に解消）$'
+}
+
 load_issue() {
   issue_number="$1"
   validate_issue_number "$issue_number"
@@ -143,7 +148,8 @@ load_issue() {
     ' "$ISSUE_BODY_FILE"
   )"
   [ -n "$owner_paths" ] || die "Issue #${issue_number}に書込み可能なPath／Globがありません"
-  if printf '%s\n' "$owner_paths" | grep -Eq 'TBD|未確定'; then
+  if printf '%s\n' "$owner_paths" | grep -Eq 'TBD|未確定' &&
+    ! owner_paths_are_g0_deferred "$owner_paths"; then
     die "書込み可能なPath／Globに未解決TBDがあります: $owner_paths"
   fi
 }
