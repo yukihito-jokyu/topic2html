@@ -31,13 +31,12 @@
 
 通常は`origin/main`を使用する。次の場合は`--base`を必須とする。
 
-- Design Freeze Gate通過Commitから複数Taskを並行開始する。
 - 依存Taskを統合した専用integration refから開始する。
 - `origin/main`へ未統合だが、承認済みの共通起点Commitがある。
 
 依存Issueはclosedだけでは不十分である。Issueのhuman-progress領域に統合Commitが記録されていれば、そのCommitが基準refに含まれることを確認する。記録がない場合は、Task IDから導出するTask branchのHEADが基準refに含まれることを確認する。
 
-Gate依存があるTaskは`--gate-commit <sha>`を指定する。スクリプトはGate Commitが基準refに含まれることを確認する。Gateの意味的な合格判定は行わない。
+GateはIssueとTask Mapで確認する設計上の条件であり、スクリプトはGate通過Commitの指定や基準refへの包含確認を行わない。
 
 ## 開始
 
@@ -78,7 +77,7 @@ tracking Issueを指定された場合はworktreeを作成せず、次の順で�
 2. `Lx`または`Lx-My`の子を同じ方法で再帰的に辿り、`Lx-My-Sz`の子孫leafを列挙する。子IssueはIssue本文のgenerated領域にある「直下の子Issue」だけから辿る。
 3. 各子のTask IDと親IDが親Issueおよび現在のTask Mapと一致することを確認する。依存関係、Gate、成果物Ownerに差異があれば開始しない。
 4. 現在のTask Mapと接続台帳を読み、着手依存、完了・Merge依存、Gate、Owner Path、Merge順を復元する。現在のIssue本文だけから新しい依存を推測しない。
-5. 依存Issueの状態、human-progressの統合CommitまたはTask branch、baseへの包含、Gate Commit、既存worktreeを確認し、現在開始できるleafをready frontierとする。
+5. 依存Issueの状態、human-progressの統合CommitまたはTask branch、baseへの包含、既存worktreeを確認し、現在開始できるleafをready frontierとする。
 6. ready frontier以降は、先行Taskの統合により解放される条件付きの将来waveとして示す。先行統合前に将来waveのbase SHAを確定しない。
 7. 現在waveの候補だけをユーザーへ提示し、選択後に各leafの`plan`を実行する。tracking Issueへ`plan`や`start`を実行しない。
 
@@ -88,7 +87,7 @@ tracking Issueを指定された場合はworktreeを作成せず、次の順で�
 | --- | --- |
 | Task | Issue番号、Task ID、Task名 |
 | Ready | 現在開始可能か、未充足条件 |
-| Evidence | 依存Issue、統合Commit、Gate Commit |
+| Evidence | 依存Issue、統合Commit |
 | Base | base ref／SHA。将来waveは解放条件だけを示す |
 | Owner | 書込みPath／Glob、共有資産Owner |
 | Execution | 並行可能Task、直列化理由、Merge順、次wave解放条件 |
@@ -114,7 +113,7 @@ Wave 2は#28の統合Commit、Wave 6は#33の統合Commitをそれぞれ共通�
 現在waveの全leafで`plan`が合格したら、次をまとめて提示して、そのまま作成へ進む。
 
 - branch、worktree、handoff
-- base ref／SHA、依存統合Commit、Gate Commit
+- base ref／SHA、依存統合Commit
 - Owner Path、共有資産、既存worktreeとの競合監査結果
 - 並行可能な組、直列化理由、Merge順、次waveの解放条件
 - GitHubアクセス、fetch、ローカル作成、VS Code起動の有無
@@ -149,7 +148,7 @@ Commit前に別サブエージェントへ、Issue #1、直接の後続Issue、�
 
 ## 並行作業
 
-同じGate Commitから別worktreeを作る場合も、次を満たす必要がある。
+同じ依存統合Commitから別worktreeを作る場合も、次を満たす必要がある。
 
 - branch名とworktree PathがTaskごとに一意である。
 - 書込みPath／Globが重ならない。
@@ -160,7 +159,7 @@ Commit前に別サブエージェントへ、Issue #1、直接の後続Issue、�
 並行可能と提案するのは、次をすべて満たすTaskだけとする。
 
 - Task間に着手依存辺がない。
-- 同じ依存統合CommitとGate Commitを共通起点にできる。
+- 同じ依存統合Commitを共通起点にできる。
 - Owner Path／Globが交差しない。
 - Schema、Migration、共通Interface、Registry、DI、Lockfile、生成物、共有Fixtureが単一Ownerまたはread-onlyである。
 - 各leafの`plan`が個別に合格する。
@@ -216,7 +215,6 @@ rtk bash .agents/skills/manage-task-worktrees/scripts/manage_worktree.sh remove 
 - 基準refに必須Skillまたはignore規則がない: [初回起動準備](#初回起動準備)へ戻り、管理機能導入用branchを実行baseへ統合する。Task worktreeの手動作成では迂回しない。
 - Task IDがleafでない: 親Taskは進捗管理用なので開始せず、「親Issueからleafへの展開」を実行する。
 - 依存Commitがない: human-progressまたはTask branchを確認する。
-- Gate Commitがない: Gate確認セッションへ戻る。
 - 基準refにCommitがない: integration順を修正し、refを更新する。
 - Pathが既に存在する: 登録済みworktreeとbranchを確認し、推測で削除しない。
 - `code`がない: `start --no-open`を使用し、利用可能なVS Code起動方法をユーザーと決める。

@@ -61,12 +61,7 @@ rtk bash <skill>/scripts/manage_worktree.sh finish <issue-number>
 rtk bash <skill>/scripts/manage_worktree.sh remove <issue-number> --merged-into <ref> --confirm
 ```
 
-通常の基準refは `origin/main` とする。Gate後のTaskはGate通過Commitを明示する。
-
-```shell
-rtk bash <skill>/scripts/manage_worktree.sh plan 46 --base <gate-ref> --gate-commit <sha>
-rtk bash <skill>/scripts/manage_worktree.sh start 46 --base <gate-ref> --gate-commit <sha>
-```
+通常の基準refは `origin/main` とする。Gateは設計上の確認事項としてIssueとTask Mapで扱い、Gate通過Commitの指定・基準refへの包含確認は行わない。
 
 `plan`はworktreeを作成しない。単純なPath重複は検査するが、複雑Glob、除外規則、Schema、Migration、Interface、Registry、DI、Lockfile、生成物、共有FixtureはCodexがTask MapとIssueを意味的に監査する。`start --no-open`はVS Codeを開かず、worktreeと引継ぎファイルだけを作成する。
 
@@ -104,7 +99,6 @@ handoff: <worktree>/.codex/task-session.local.md
 - `--merged-into`へHEADが含まれないworktreeを削除しない。
 - `--force`、`git reset --hard`、未確認のbranch削除を使わない。
 - 依存Issueが未完了、統合Commitが未記録、または基準refに含まれない場合は開始しない。
-- Gate依存がある場合、`--gate-commit`なしでは開始しない。
 - 並行Taskの書込みPathが重なる場合は開始せず、単一Ownerへ直列化する。
 - 自動Path検査の合格だけで並行可能と断定しない。
 - 未完了の将来wave用worktreeを先に作成して依存確認を迂回しない。
