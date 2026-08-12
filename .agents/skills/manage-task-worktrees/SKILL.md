@@ -16,7 +16,6 @@ Task Issueを1つのブランチ、worktree、VS Codeウィンドウ、Codexセ�
 - Commit（Gitへ保存した変更履歴）、SHA（Commitの識別値）、HEAD（現在のbranchが指す最新Commit）: 作業の開始・現在・統合済みの各時点を一意に照合するために必要である。
 - Gate（次工程へ進む前の確認条件）: 設計確定など、後続Taskを始める前に満たす条件である。未確定の前提で実装を始めないために必要である。
 - 成果物Owner（変更責任の所在）とPath／Glob（変更場所と複数場所を表す対象指定）: Taskが変更してよいファイルや設計領域を示す。並行Task間の競合と責任混在を防ぐために必要である。
-- Planning snapshot（計画固定版）: Task構成、依存関係、成果物Ownerを特定のCommit時点で固定した計画である。開始時の条件を後から再現するために必要である。
 - Evidence（実施を裏付ける証拠）と`human-progress`（人が更新するIssue進捗欄）: 実際のCommit、検証、PR、統合結果を確認・記録するために必要である。予定を完了実績として扱わない。
 - dirty／clean（未Commit変更がある／ない状態）: worktreeを安全に削除できるか区別する状態である。未保存の成果物を失わないために必要である。
 - push（共有リポジトリへの送信）、PR（変更の取込み依頼）、Merge（変更の取込み）: ローカル履歴の作成、共有、確認依頼、正式取込みを分けて扱うために必要である。
@@ -26,9 +25,9 @@ Task Issueを1つのブランチ、worktree、VS Codeウィンドウ、Codexセ�
 ## 必須手順
 
 1. 変更操作の前に[ライフサイクル](references/lifecycle.md)を全文読む。
-2. 指定Issueがtracking Taskなら、`plan`や`start`を実行せず、Issue本文と固定Planning snapshotから子孫leafを再帰的に展開する。
+2. 指定Issueがtracking Taskなら、`plan`や`start`を実行せず、Issue本文と現在のTask Mapから子孫leafを再帰的に展開する。
 3. leafの依存DAG、Gate、基準ref、Owner Path、既存worktreeを照合し、現在のready frontierと将来waveをユーザーへ提案する。
-4. 基準refの必須Skillまたはignore規則が欠けている場合は、初回起動準備の未完了として扱う。[ライフサイクルの初回起動準備](references/lifecycle.md#初回起動準備)に従い、管理機能を導入するbase Commitの要否を判断する。IssueにPlanning snapshot SHAがない場合は、解決したbase SHAをsnapshotとして使用する。
+4. 基準refの必須Skillまたはignore規則が欠けている場合は、初回起動準備の未完了として扱う。[ライフサイクルの初回起動準備](references/lifecycle.md#初回起動準備)に従い、管理機能を導入するbase Commitの要否を判断する。利用者に未説明の内部前提を補わせる質問だけを返して作業を止めない。
 5. ユーザーが選んだ現在waveの各leafについてPrimary checkoutから `plan` を実行する。機械判定に加え、複雑Globと共有資産のPath競合を意味的に監査する。
 6. wave全体の作成内容、並行・直列理由、Merge順、外部操作を示し、`plan`が合格した各leafの `start` を続けて実行する。worktree作成のための利用者承認待ちは挟まない。
 7. VS Codeが開いたら、ユーザーへ各ウィンドウでCodexの開始と引継ぎファイルの読込みを依頼する。生成された開始プロンプトでは `$conduct-task-discussion` と `$explain-with-context` も必ず指定する。
@@ -90,9 +89,9 @@ handoff: <worktree>/.codex/task-session.local.md
 - `plan`は基準ref、`start`は基準refに加えて既存branchと対象worktreeに、`manage-task-worktrees`、`conduct-task-discussion`、`explain-with-context`が存在することを確認する。開始プロンプトが、存在しないSkillを指定する状態を許可しない。
 - 既存worktreeの再開では`.codex/task-session.local.md`を上書きしない。質問・回答・判断履歴を保持し、必須Skillの開始プロンプトがない場合だけ追記する。
 - `start`だけでなく`open`でも、worktree内の必須Skillと版付き開始プロンプトを検査する。`open`を使って検査を迂回させない。
-- 引継ぎファイル、Task Issue、固定Planning snapshotを最初に読む。
+- 引継ぎファイル、Task Issue、現在のTask Mapを最初に読む。
 - `$conduct-task-discussion` と `$explain-with-context` を読み、利用者への返答、成果物、質問、作業セッション記録へ適用する。
-- Commit前に別サブエージェントへ、Issue #1、直接の後続Issue、固定Planning snapshot、変更成果物の整合性を独立レビューさせる。
+- Commit前に別サブエージェントへ、Issue #1、直接の後続Issue、現在のTask Map、変更成果物の整合性を独立レビューさせる。
 - Issueの単一Owner Pathだけを変更する。
 - 意味判断、依存関係、Gate条件を作業セッション内で追加しない。
 - 契約差異や未解決TBDを見つけた場合は実装を止め、元セッションへ戻す。

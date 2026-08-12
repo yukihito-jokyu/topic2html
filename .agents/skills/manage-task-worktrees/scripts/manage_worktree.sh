@@ -104,11 +104,6 @@ load_issue() {
   branch_name="task/issue-${issue_number}-${task_slug}"
   worktree_path="$worktree_root/issue-${issue_number}-${task_slug}"
 
-  planning_snapshot="$(
-    sed -nE 's/.*planning-snapshot: ([0-9a-f]{40}).*/\1/p' "$ISSUE_BODY_FILE" |
-      head -1
-  )"
-
   owner_paths="$(
     awk -F '|' '
       {
@@ -345,7 +340,6 @@ print_plan() {
   note "Worktree:   $worktree_path"
   note "Owner:      $owner_paths"
   note "Path audit: $path_audit_summary"
-  note "Snapshot:   $planning_snapshot"
 }
 
 escape_awk_replacement() {
@@ -374,7 +368,7 @@ render_handoff() {
 $manage-task-worktrees、$conduct-task-discussion、$explain-with-context を使って
 .codex/task-session.local.md とTask Issueを読み、記載されたleaf Taskだけを実行してください。
 ユーザーへの返答と成果物では前提知識、用語の意味、各要素が必要な理由を省略しないでください。
-Commit前に別サブエージェントへ、Issue #1、直接の後続Issue、計画固定版と現在のTask Map・接続台帳、
+Commit前に別サブエージェントへ、Issue #1、直接の後続Issue、現在のTask Map・接続台帳、
 Issueが指定する決定記録、作業セッション、Git状態と差分、変更成果物を読取り専用で照合させ、
 矛盾・欠落・説明不足の修正指摘がなくなるまで対応してください。
 依存関係、Gate、成果物Ownerに差異があれば作業を止めて報告してください。
@@ -401,7 +395,6 @@ HANDOFF_APPEND
     -v base_ref="$base_ref" \
     -v base_sha="$base_sha" \
     -v gate_commit="${gate_commit:-該当なし}" \
-    -v snapshot="$planning_snapshot" \
     -v owner="$safe_owner" '
       {
         gsub(/{{ISSUE_NUMBER}}/, issue_number)
@@ -413,7 +406,6 @@ HANDOFF_APPEND
         gsub(/{{BASE_REF}}/, base_ref)
         gsub(/{{BASE_SHA}}/, base_sha)
         gsub(/{{GATE_COMMIT}}/, gate_commit)
-        gsub(/{{PLANNING_SNAPSHOT}}/, snapshot)
         gsub(/{{OWNER_PATHS}}/, owner)
         print
       }
@@ -482,15 +474,6 @@ run_plan_or_start() {
 
   base_sha="$(git -C "$primary_root" rev-parse --verify "${base_ref}^{commit}" 2>/dev/null)" ||
     die "基準refを解決できません: $base_ref"
-
-  if [ -z "$planning_snapshot" ]; then
-    planning_snapshot="$base_sha"
-  else
-    git -C "$primary_root" cat-file -e "${planning_snapshot}^{commit}" 2>/dev/null ||
-      die "Planning snapshotをlocalで解決できません: $planning_snapshot"
-    git -C "$primary_root" merge-base --is-ancestor "$planning_snapshot" "$base_sha" ||
-      die "Planning snapshot $planning_snapshot が基準ref $base_ref に含まれていません"
-  fi
 
   validate_ref_required_skills "$base_sha" "基準ref"
   validate_ignore_rules
