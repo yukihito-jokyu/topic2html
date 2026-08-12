@@ -98,7 +98,7 @@ handoff: <worktree>/.codex/task-session.local.md
 - dirtyなworktreeを削除しない。
 - `--merged-into`へHEADが含まれないworktreeを削除しない。
 - `--force`、`git reset --hard`、未確認のbranch削除を使わない。
-- 依存Issueが未完了、統合Commitが未記録、または基準refに含まれない場合は開始しない。
+- leaf依存Issueが未完了、統合Commitが未記録、または基準refに含まれない場合は開始しない。親依存Issueは、すべての子孫leafが完了Evidenceを持ち基準refに含まれる場合、親Issueのcloseや親専用の統合Commitを待たない。
 - 並行Taskの書込みPathが重なる場合は開始せず、単一Ownerへ直列化する。
 - 自動Path検査の合格だけで並行可能と断定しない。
 - 未完了の将来wave用worktreeを先に作成して依存確認を迂回しない。

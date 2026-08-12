@@ -171,6 +171,21 @@ dependency_issue_numbers() {
     sort -nu || true
 }
 
+direct_child_issue_numbers() {
+  sed -n '/<!-- generated-content:start -->/,/<!-- generated-content:end -->/p' "$1" |
+    sed -n '/## 直下の子Issue/,/## 完了条件/p' |
+    sed '$d' |
+    grep -Eo '#[0-9]+' |
+    sed 's/^#//' |
+    sort -nu || true
+}
+
+parent_task_reference_from_file() {
+  sed -n '/<!-- generated-content:start -->/,/<!-- generated-content:end -->/p' "$1" |
+    grep -Eo '親Task ID:[[:space:]]*#[0-9]+（L[0-9]+(-M[0-9]+)?\）' |
+    head -1
+}
+
 task_id_from_file() {
   {
     grep -Eo 'knowledge-task-id: L[0-9]+(-M[0-9]+)?(-S[0-9]+)?' "$1" |
@@ -191,6 +206,20 @@ is_ancestor_task() {
   esac
 }
 
+is_leaf_task() {
+  printf '%s\n' "$1" | grep -Eq '^L[0-9]+-M[0-9]+-S[0-9]+$'
+}
+
+is_direct_child_task() {
+  parent_task_id="$1"
+  child_task_id="$2"
+  case "$parent_task_id" in
+    L[0-9]*-M[0-9]*) printf '%s\n' "$child_task_id" | grep -Eq "^${parent_task_id}-S[0-9]+$" && return 0 ;;
+    L[0-9]*) printf '%s\n' "$parent_task_id" | grep -Eq '^L[0-9]+$' && printf '%s\n' "$child_task_id" | grep -Eq "^${parent_task_id}-M[0-9]+$" && return 0 ;;
+  esac
+  return 1
+}
+
 find_dependency_commit() {
   dep_body_file="$1"
   sed -n '/human-progress:start/,/human-progress:end/p' "$dep_body_file" |
@@ -208,10 +237,69 @@ find_dependency_branch_commit() {
     git -C "$primary_root" rev-parse --verify "refs/heads/${dep_branch}^{commit}" 2>/dev/null || true
 }
 
+validate_dependency_reference() {
+  dep_issue="$1"
+  base_sha="$2"
+  expected_parent_issue="${3:-}"
+  expected_parent_task_id="${4:-}"
+  case " ${validated_dependency_issues:-} " in
+    *" #${dep_issue} "*) die "親依存Issueの子関係が循環しています: #${dep_issue}" ;;
+  esac
+  validated_dependency_issues="${validated_dependency_issues:-} #${dep_issue}"
+  dep_body_file="$(mktemp "${TMPDIR:-/tmp}/manage-task-dependency.XXXXXX")"
+  dep_json_file="$(mktemp "${TMPDIR:-/tmp}/manage-task-dependency-json.XXXXXX")"
+  load_github_issue_json "$dep_issue" >"$dep_json_file" ||
+    die "公開GitHub APIから依存Issue #${dep_issue}を取得できません。ネットワーク接続とIssueの公開状態を確認してください"
+  jq -r '.body // ""' "$dep_json_file" >"$dep_body_file"
+  dep_task_id="$(task_id_from_file "$dep_body_file")"
+  [ -n "$dep_task_id" ] || die "依存Issue #${dep_issue}にTask IDがありません"
+  if [ -n "$expected_parent_task_id" ]; then
+    is_direct_child_task "$expected_parent_task_id" "$dep_task_id" ||
+      die "親依存Issue #${expected_parent_issue}（${expected_parent_task_id}）の子Issue #${dep_issue}のTask IDが直下関係ではありません: ${dep_task_id}"
+    parent_task_reference="$(parent_task_reference_from_file "$dep_body_file")"
+    [ "$parent_task_reference" = "親Task ID: #${expected_parent_issue}（${expected_parent_task_id}）" ] ||
+      die "子Issue #${dep_issue}の親Task IDが親依存Issue #${expected_parent_issue}（${expected_parent_task_id}）と一致しません"
+  fi
+
+  if ! is_leaf_task "$dep_task_id"; then
+    child_issues="$(direct_child_issue_numbers "$dep_body_file")"
+    rm -f "$dep_body_file" "$dep_json_file"
+    [ -n "$child_issues" ] || die "親依存Issue #${dep_issue}（${dep_task_id}）に直下の子Issueがありません"
+
+    child_summary=""
+    for child_issue in $child_issues; do
+      validate_dependency_reference "$child_issue" "$base_sha" "$dep_issue" "$dep_task_id"
+      child_summary="${child_summary}${dependency_reference_summary} "
+    done
+    dependency_reference_summary="#${dep_issue}:${dep_task_id}(子leaf完了: ${child_summary})"
+    return
+  fi
+
+  dep_state="$(jq -r '.state | ascii_upcase' "$dep_json_file")"
+  [ "$dep_state" = "CLOSED" ] || die "着手依存Issue #${dep_issue}が未完了です: $dep_state"
+
+  dep_commit="$(find_dependency_commit "$dep_body_file")"
+  if [ -z "$dep_commit" ]; then
+    dep_commit="$(find_dependency_branch_commit "$dep_issue" "$dep_task_id")"
+    dep_evidence="Task branch"
+  else
+    dep_evidence="human-progress"
+  fi
+  rm -f "$dep_body_file" "$dep_json_file"
+
+  [ -n "$dep_commit" ] || die "依存Issue #${dep_issue}に統合Commitがありません。human-progressまたはTask branchを確認してください"
+  git -C "$primary_root" cat-file -e "${dep_commit}^{commit}" 2>/dev/null ||
+    die "依存Issue #${dep_issue}のCommitをlocalで解決できません: $dep_commit"
+  git -C "$primary_root" merge-base --is-ancestor "$dep_commit" "$base_sha" ||
+    die "依存Issue #${dep_issue}のCommit $dep_commit が基準refに含まれていません"
+  dependency_reference_summary="#${dep_issue}:${dep_commit}(${dep_evidence})"
+}
+
 validate_dependencies() {
   base_sha="$1"
   dependency_summary=""
   tracking_context_summary=""
+  validated_dependency_issues=""
 
   for dep_issue in $(dependency_issue_numbers); do
     dep_body_file="$(mktemp "${TMPDIR:-/tmp}/manage-task-dependency.XXXXXX")"
@@ -228,24 +316,9 @@ validate_dependencies() {
       continue
     fi
 
-    dep_state="$(jq -r '.state | ascii_upcase' "$dep_json_file")"
-    [ "$dep_state" = "CLOSED" ] || die "着手依存Issue #${dep_issue}が未完了です: $dep_state"
-
-    dep_commit="$(find_dependency_commit "$dep_body_file")"
-    if [ -z "$dep_commit" ]; then
-      dep_commit="$(find_dependency_branch_commit "$dep_issue" "$dep_task_id")"
-      dep_evidence="Task branch"
-    else
-      dep_evidence="human-progress"
-    fi
     rm -f "$dep_body_file" "$dep_json_file"
-
-    [ -n "$dep_commit" ] || die "依存Issue #${dep_issue}に統合Commitがありません。human-progressまたはTask branchを確認してください"
-    git -C "$primary_root" cat-file -e "${dep_commit}^{commit}" 2>/dev/null ||
-      die "依存Issue #${dep_issue}のCommitをlocalで解決できません: $dep_commit"
-    git -C "$primary_root" merge-base --is-ancestor "$dep_commit" "$base_sha" ||
-      die "依存Issue #${dep_issue}のCommit $dep_commit が基準refに含まれていません"
-    dependency_summary="${dependency_summary}#${dep_issue}:${dep_commit}(${dep_evidence}) "
+    validate_dependency_reference "$dep_issue" "$base_sha"
+    dependency_summary="${dependency_summary}${dependency_reference_summary} "
   done
 
   [ -n "$dependency_summary" ] || dependency_summary="該当なし"
