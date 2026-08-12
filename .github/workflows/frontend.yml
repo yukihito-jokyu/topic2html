@@ -1,0 +1,53 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - "Taskfile.yml"
+      - ".github/workflows/frontend.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Check, build, and Storybook tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Task
+        uses: go-task/setup-task@v1
+
+      - name: Install dependencies
+        run: task frontend:install
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run frontend checks
+        run: |
+          task frontend:typecheck
+          task frontend:check
+          task frontend:build
+          task frontend:test
+
+      - name: Build Storybook
+        run: task frontend:storybook:build
+
+      - name: Test Storybook
+        run: task frontend:storybook:test
+
+      - name: Run end-to-end tests
+        run: task frontend:e2e
