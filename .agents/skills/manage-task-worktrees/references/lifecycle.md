@@ -46,7 +46,7 @@ leaf Taskを直接指定された場合は、最初にdry-run（worktreeを作�
 rtk bash .agents/skills/manage-task-worktrees/scripts/manage_worktree.sh plan 28
 ```
 
-表示内容を確認後、外部アクセスとGUI起動の承認を得て開始する。
+`plan`が合格したら、そのまま開始する。worktree作成やVS Code起動のために利用者の承認待ちは挟まない。
 
 ```shell
 rtk bash .agents/skills/manage-task-worktrees/scripts/manage_worktree.sh start 28
@@ -66,7 +66,7 @@ leaf Issueの機械識別欄、基準refの必須Skill、またはignore規則�
 1. Planning snapshotと実行baseを区別する。Planning snapshotはTask構成、依存、Gate、Ownerを固定したCommitであり、実行baseはTask worktreeを開始するCommitである。実行baseはPlanning snapshotを履歴に含み、さらにworktree管理用Skillとignore規則を含んでよい。
 2. 現在のTask Map、議論記録、接続台帳を含む既存Commitを確認する。現在の計画資料に、そのCommit以後の未Commit差分がなく、Issue本文とも一致する場合は、新しい計画Commitを作らず既存CommitをPlanning snapshotとして再利用する。単に最新Commitという理由だけで選ばない。
 3. GitHub Issue更新が利用者の依頼範囲に含まれる場合は、Task ID Marker、Planning snapshot SHA、固定リンクをIssueへ同期する。含まれない場合は、必要な外部変更と影響を説明して承認を得る。
-4. 実行baseに必須Skill、`/.worktrees/`、`/.codex/task-session.local.md`のignore規則がなければ、管理機能導入用の分離branchで補う。このbootstrap branchはTask成果物のOwner branchではない。Task用`start`がまだ利用できない初回に限り、利用者の承認を得てPrimary checkoutから通常の`git worktree add`で隔離worktreeを作成できる。
+4. 実行baseに必須Skill、`/.worktrees/`、`/.codex/task-session.local.md`のignore規則がなければ、管理機能導入用の分離branchで補う。このbootstrap branchはTask成果物のOwner branchではない。Task用`start`がまだ利用できない初回に限り、Primary checkoutから通常の`git worktree add`で隔離worktreeを作成できる。
 5. 既存Planning snapshotを再利用できない場合だけ、同じ管理用branchでsnapshot候補も作る。Commit、統合、push、Issue更新はそれぞれの承認境界を守る。
 6. 管理機能導入Commitを含むrefを実行baseとし、Planning snapshotがその履歴に含まれることを確認する。
 7. Primary checkoutから`plan`を再実行し、通常の依存・Gate・Owner監査へ戻る。Task用worktreeを手動作成して検査を迂回しない。
@@ -114,9 +114,9 @@ Wave 9: #38
 
 Wave 2は#28の統合Commit、Wave 6は#33の統合Commitをそれぞれ共通起点にでき、各組のOwner Pathが分離されているため並行可能である。各組内のMerge順は任意だが、両Taskを統合したCommitを次waveのbaseにする。それ以外は直接依存DAGに従って直列化する。
 
-## waveの承認と作成
+## waveの確認と作成
 
-現在waveの全leafで`plan`が合格したら、次をまとめて提示して承認を得る。
+現在waveの全leafで`plan`が合格したら、次をまとめて提示して、そのまま作成へ進む。
 
 - branch、worktree、handoff
 - base ref／SHA、依存統合Commit、Gate Commit
@@ -124,7 +124,7 @@ Wave 2は#28の統合Commit、Wave 6は#33の統合Commitをそれぞれ共通�
 - 並行可能な組、直列化理由、Merge順、次waveの解放条件
 - GitHubアクセス、fetch、ローカル作成、VS Code起動の有無
 
-複数leafをまとめて作る場合は、承認後にleafごとに`start --no-open`を実行し、必要なウィンドウだけ`open`してもよい。`start --no-open`もbranch、worktree、handoffを作成する変更操作である。後続waveは前提Merge後に再展開・再`plan`し、別途承認を得る。
+複数leafをまとめて作る場合は、leafごとに`start --no-open`を実行し、必要なウィンドウだけ`open`してもよい。`start --no-open`もbranch、worktree、handoffを作成する変更操作である。後続waveは前提Merge後に再展開・再`plan`して開始する。
 
 再開時に`.codex/task-session.local.md`が既にある場合、質問・回答・判断履歴を上書きしない。3つの必須Skillを指定する開始プロンプトがない場合だけ末尾へ追記する。worktree自体に必須Skillがない場合は、基準refをそのTask branchへ安全に統合するまで再開しない。
 
