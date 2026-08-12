@@ -44,7 +44,7 @@ $manage-task-worktrees、$conduct-task-discussion、$explain-with-context を使
 Commit前に別サブエージェントへ、Issue #1、直接の後続Issue、現在のTask Map・接続台帳、
 Issueが指定する決定記録、作業セッション、Git状態と差分、変更成果物を読取り専用で照合させ、
 矛盾・欠落・説明不足の修正指摘がなくなるまで対応してください。
-依存関係、Gate、成果物Ownerに差異があれば作業を止めて報告してください。
+依存関係または成果物Ownerに差異があれば作業を止めて報告してください。Gateの記載は参考情報として扱い、開始・継続を止めないでください。
 ユーザーが明示的に承認するまでCommitしないでください。
 ```
 

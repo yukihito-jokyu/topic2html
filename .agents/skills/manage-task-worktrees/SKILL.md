@@ -1,6 +1,6 @@
 ---
 name: manage-task-worktrees
-description: GitHub tracking Issueから実行可能なleaf Taskを展開し、依存DAGと書込みPathから並行waveを提案したうえで、Taskごとに隔離したGit worktree、ブランチ、VS Code、Codexセッションを作成・再開・完了・削除まで管理する。親Issueを起点に作業を始める場合、依存Task・Gate・基準Commit・Path競合を確認して並行作業を計画する場合に使用する。
+description: GitHub tracking Issueから実行可能なleaf Taskを展開し、依存DAGと書込みPathから並行waveを提案したうえで、Taskごとに隔離したGit worktree、ブランチ、VS Code、Codexセッションを作成・再開・完了・削除まで管理する。親Issueを起点に作業を始める場合、依存Task・基準Commit・Path競合を確認して並行作業を計画する場合に使用する。
 ---
 
 # Task Worktree管理
@@ -14,7 +14,7 @@ Task Issueを1つのブランチ、worktree、VS Codeウィンドウ、Codexセ�
 - branch（変更履歴の作業系列）とworktree（分離作業ディレクトリ）: 一つのTaskの変更履歴と実ファイルを他Taskから分ける仕組みである。未完了変更の混在を防ぐために必要である。
 - ref（Commitを指す名前）、Base ref（作業開始の基準）、integration ref（複数Taskを統合した基準）: どのCommitを作業の起点や統合結果として使うか表す名前である。依存Taskを含む正しい時点から開始するために必要である。
 - Commit（Gitへ保存した変更履歴）、SHA（Commitの識別値）、HEAD（現在のbranchが指す最新Commit）: 作業の開始・現在・統合済みの各時点を一意に照合するために必要である。
-- Gate（次工程へ進む前の確認条件）: 設計確定など、後続Taskを始める前に満たす条件である。未確定の前提で実装を始めないために必要である。
+- Gate（設計上の確認記録）: 設計上の判断や確認事項を記録する項目である。worktreeの開始可否はGateではなく、明示された依存Task・基準ref・Owner Path・Path競合で判断する。
 - 成果物Owner（変更責任の所在）とPath／Glob（変更場所と複数場所を表す対象指定）: Taskが変更してよいファイルや設計領域を示す。並行Task間の競合と責任混在を防ぐために必要である。
 - Evidence（実施を裏付ける証拠）と`human-progress`（人が更新するIssue進捗欄）: 実際のCommit、検証、PR、統合結果を確認・記録するために必要である。予定を完了実績として扱わない。
 - dirty／clean（未Commit変更がある／ない状態）: worktreeを安全に削除できるか区別する状態である。未保存の成果物を失わないために必要である。
@@ -26,7 +26,7 @@ Task Issueを1つのブランチ、worktree、VS Codeウィンドウ、Codexセ�
 
 1. 変更操作の前に[ライフサイクル](references/lifecycle.md)を全文読む。
 2. 指定Issueがtracking Taskなら、`plan`や`start`を実行せず、Issue本文と現在のTask Mapから子孫leafを再帰的に展開する。
-3. leafの依存DAG、Gate、基準ref、Owner Path、既存worktreeを照合し、現在のready frontierと将来waveをユーザーへ提案する。
+3. leafの依存DAG、基準ref、Owner Path、既存worktreeを照合し、Gateは参考情報として併記して、現在のready frontierと将来waveをユーザーへ提案する。
 4. 基準refの必須Skillまたはignore規則が欠けている場合は、初回起動準備の未完了として扱う。[ライフサイクルの初回起動準備](references/lifecycle.md#初回起動準備)に従い、管理機能を導入するbase Commitの要否を判断する。利用者に未説明の内部前提を補わせる質問だけを返して作業を止めない。
 5. ユーザーが選んだ現在waveの各leafについてPrimary checkoutから `plan` を実行する。機械判定に加え、複雑Globと共有資産のPath競合を意味的に監査する。
 6. wave全体の作成内容、並行・直列理由、Merge順、外部操作を示し、`plan`が合格した各leafの `start` を続けて実行する。worktree作成のための利用者承認待ちは挟まない。
@@ -43,7 +43,7 @@ Task Issueを1つのブランチ、worktree、VS Codeウィンドウ、Codexセ�
 `Lx`と`Lx-My`はtracking Task、`Lx-My-Sz`はworktreeを持つleaf Taskとして扱う。tracking Issueを指定された場合は[ライフサイクルの親Issue展開](references/lifecycle.md#親issueからleafへの展開)を実行し、次を表で提示する。
 
 - 現在開始できるready frontierと、依存統合後に解放される将来wave
-- 各leafのIssue、Task ID、依存Evidence、Gate、Owner Path、base ref／SHA
+- 各leafのIssue、Task ID、依存Evidence、Gateの参考情報、Owner Path、base ref／SHA
 - 並行可能な組、直列化する理由、Merge順、次waveの解放条件
 
 将来waveのbase SHAは先行Taskの統合前に確定しない。tracking Issue自身へ `start` を実行せず、ユーザーが承認した現在waveのleafだけを `plan`、`start` する。
@@ -61,7 +61,7 @@ rtk bash <skill>/scripts/manage_worktree.sh finish <issue-number>
 rtk bash <skill>/scripts/manage_worktree.sh remove <issue-number> --merged-into <ref> --confirm
 ```
 
-通常の基準refは `origin/main` とする。Gateは設計上の確認事項としてIssueとTask Mapで扱い、Gate通過Commitの指定・基準refへの包含確認は行わない。
+通常の基準refは `origin/main` とする。Gateは設計上の参考情報としてIssueとTask Mapで扱う。Gateの未通過、記録不足、または記載差異を理由に`plan`、`start`、ready frontierを停止しない。
 
 `plan`はworktreeを作成しない。単純なPath重複は検査するが、複雑Glob、除外規則、Schema、Migration、Interface、Registry、DI、Lockfile、生成物、共有FixtureはCodexがTask MapとIssueを意味的に監査する。`start --no-open`はVS Codeを開かず、worktreeと引継ぎファイルだけを作成する。
 

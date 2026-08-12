@@ -6,8 +6,8 @@
 - `git`、`curl`、`jq`、`code`を利用できる。公開GitHub Issueは認証なしのREST APIで読むため、`gh`の導入・認証は前提にしない。
 - `/.worktrees/`と`/.codex/task-session.local.md`が`.gitignore`に登録されている。
 - 実行対象は`Lx-My-Sz`形式のleaf Task Issueである。
-- 現在のTask Mapと接続台帳を依存DAG・Gate・Ownerの正本とし、GitHub Issue本文を実行用の同期コピーとして照合する。依存関係、Gate、成果物Ownerに差異があれば開始しない。
-- Owner Pathが`TBD（G0通過後に物理Path／Globを確定し、Ready判定前に解消）`だけであるG0前Taskは、物理Pathを確定する成果物そのものを作るために`plan`と`start`を許可する。これ以外の`TBD`または`未確定`は停止する。この繰延記法を使ったTaskは、G0後の実装TaskをReadyにする前に物理Path／GlobをTask MapとIssueへ反映する。
+- 現在のTask Mapと接続台帳を依存DAG・Ownerの正本とし、GitHub Issue本文を実行用の同期コピーとして照合する。依存関係または成果物Ownerに差異があれば開始しない。Gateは参考情報として表示するが、開始可否の照合対象にしない。
+- Owner Pathが`TBD（G0通過後に物理Path／Globを確定し、Ready判定前に解消）`だけであるTaskは、G0の状態にかかわらず`plan`と`start`を許可する。この繰延記法以外の`TBD`または`未確定`は停止する。
 - GitHub Issue本文のTask ID欄を確認する。コメント形式のTask ID Markerは必須にしない。
 - 基準refと作成・再開するworktreeの双方に、`manage-task-worktrees`、`conduct-task-discussion`、`explain-with-context`の3つのSkillが存在する。開始プロンプトだけが存在し、実際の手順書を読めない状態を防ぐために必要である。
 
@@ -36,7 +36,7 @@
 
 依存Issueはclosedだけでは不十分である。Issueのhuman-progress領域に統合Commitが記録されていれば、そのCommitが基準refに含まれることを確認する。記録がない場合は、Task IDから導出するTask branchのHEADが基準refに含まれることを確認する。
 
-GateはIssueとTask Mapで確認する設計上の条件であり、スクリプトはGate通過Commitの指定や基準refへの包含確認を行わない。
+GateはIssueとTask Mapで確認する参考情報であり、スクリプトはGate通過Commitの指定や基準refへの包含確認を行わず、Gateの状態で開始を停止しない。
 
 ## 開始
 
@@ -63,9 +63,9 @@ rtk bash .agents/skills/manage-task-worktrees/scripts/manage_worktree.sh open 28
 
 基準refの必須Skillまたはignore規則がない場合は、Taskの依存不成立ではなく、worktree管理導入工程の接続漏れとして扱う。利用者が内部形式を知っている前提で停止理由だけを返さず、次の順に復旧する。
 
-1. 現在のTask Map、議論記録、接続台帳とIssue本文を照合し、依存関係、Gate、成果物Ownerが一致することを確認する。
+1. 現在のTask Map、議論記録、接続台帳とIssue本文を照合し、依存関係と成果物Ownerが一致することを確認する。Gateの記録は参考情報として扱う。
 2. 実行baseに必須Skill、`/.worktrees/`、`/.codex/task-session.local.md`のignore規則がなければ、管理機能導入用の分離branchで補う。このbootstrap branchはTask成果物のOwner branchではない。Task用`start`がまだ利用できない初回に限り、Primary checkoutから通常の`git worktree add`で隔離worktreeを作成できる。
-3. 管理機能導入Commitを含むrefを実行baseとし、Primary checkoutから`plan`を再実行して通常の依存・Gate・Owner監査へ戻る。Task用worktreeを手動作成して検査を迂回しない。
+3. 管理機能導入Commitを含むrefを実行baseとし、Primary checkoutから`plan`を再実行して通常の依存・Owner監査へ戻る。Task用worktreeを手動作成して検査を迂回しない。
 
 同じTaskのbranchとworktreeが正しく存在する場合、`start`は破壊せず再開として扱う。別Pathで同じbranchがcheckoutされている場合は停止する。
 
@@ -75,8 +75,8 @@ tracking Issueを指定された場合はworktreeを作成せず、次の順で�
 
 1. 指定IssueのTask IDと直下の子Issueを読む。
 2. `Lx`または`Lx-My`の子を同じ方法で再帰的に辿り、`Lx-My-Sz`の子孫leafを列挙する。子IssueはIssue本文のgenerated領域にある「直下の子Issue」だけから辿る。
-3. 各子のTask IDと親IDが親Issueおよび現在のTask Mapと一致することを確認する。依存関係、Gate、成果物Ownerに差異があれば開始しない。
-4. 現在のTask Mapと接続台帳を読み、着手依存、完了・Merge依存、Gate、Owner Path、Merge順を復元する。現在のIssue本文だけから新しい依存を推測しない。
+3. 各子のTask IDと親IDが親Issueおよび現在のTask Mapと一致することを確認する。依存関係または成果物Ownerに差異があれば開始しない。Gateの記載差異は参考情報として報告する。
+4. 現在のTask Mapと接続台帳を読み、着手依存、完了・Merge依存、Owner Path、Merge順を復元する。Gateは参考情報として併記する。現在のIssue本文だけから新しい依存を推測しない。
 5. 依存Issueの状態、human-progressの統合CommitまたはTask branch、baseへの包含、既存worktreeを確認し、現在開始できるleafをready frontierとする。
 6. ready frontier以降は、先行Taskの統合により解放される条件付きの将来waveとして示す。先行統合前に将来waveのbase SHAを確定しない。
 7. 現在waveの候補だけをユーザーへ提示し、選択後に各leafの`plan`を実行する。tracking Issueへ`plan`や`start`を実行しない。
@@ -132,7 +132,7 @@ $manage-task-worktrees、$conduct-task-discussion、$explain-with-context を使
 ユーザーへの返答と成果物では前提知識、用語の意味、各要素が必要な理由を省略しないでください。
 Commit前に別サブエージェントへ、Issue #1、直接の後続Issue、現在のTask Map・接続台帳、
 変更成果物の矛盾・欠落・説明不足をレビューさせ、修正指摘がなくなるまで対応してください。
-依存関係、Gate、成果物Ownerに差異があれば作業を止めて報告してください。
+依存関係または成果物Ownerに差異があれば作業を止めて報告してください。Gateの記載は参考情報として扱い、開始・継続を止めないでください。
 ユーザーが明示的に承認するまでCommitしないでください。
 ```
 
@@ -142,7 +142,7 @@ Commit前に別サブエージェントへ、Issue #1、直接の後続Issue、�
 2. 現在branchと引継ぎbranchが一致する。
 3. HEADと引継ぎのworktree起点SHAが整合する。
 4. 書込みPathがIssueの単一Owner境界内である。
-5. 依存・GateのEvidenceが引継ぎとIssueに存在する。
+5. 依存Evidenceが引継ぎとIssueに存在する。Gateは参考情報として記録されていればよい。
 6. `$conduct-task-discussion` と `$explain-with-context` が開始プロンプトに明記されている。
 7. 現在の`docs/task-connections.md`、Issueが指定する決定記録から直接の後続Issueを特定できる。
 
