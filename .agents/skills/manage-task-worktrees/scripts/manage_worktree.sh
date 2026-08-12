@@ -34,8 +34,8 @@ need_command() {
 usage() {
   cat <<USAGE
 Usage:
-  $PROGRAM_NAME plan ISSUE [--base REF] [--gate-commit SHA] [--fetch]
-  $PROGRAM_NAME start ISSUE [--base REF] [--gate-commit SHA] [--no-fetch] [--no-open]
+  $PROGRAM_NAME plan ISSUE [--base REF] [--fetch]
+  $PROGRAM_NAME start ISSUE [--base REF] [--no-fetch] [--no-open]
   $PROGRAM_NAME status [ISSUE]
   $PROGRAM_NAME open ISSUE
   $PROGRAM_NAME finish ISSUE
@@ -159,7 +159,7 @@ dependency_rows() {
     {
       key=$2
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
-      if (key=="着手依存" || key=="Gate通過依存") print $0
+      if (key=="着手依存") print $0
     }
   ' "$ISSUE_BODY_FILE"
 }
@@ -189,22 +189,6 @@ is_ancestor_task() {
     "${ancestor_task_id}-"*) return 0 ;;
     *) return 1 ;;
   esac
-}
-
-gate_is_required() {
-  gate_row="$(
-    awk -F '|' '
-      {
-        key=$2
-        gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
-        if (key=="Gate通過依存") print $0
-      }
-    ' "$ISSUE_BODY_FILE"
-  )"
-  [ -n "$gate_row" ] || return 1
-  printf '%s\n' "$gate_row" | grep -Eq 'Gate' || return 1
-  printf '%s\n' "$gate_row" | grep -Eq '該当なし' && return 1
-  return 0
 }
 
 find_dependency_commit() {
@@ -366,7 +350,6 @@ print_plan() {
   note "Repository: $repo_slug"
   note "Base ref:   $base_ref"
   note "Base SHA:   $base_sha"
-  note "Gate SHA:   ${gate_commit:-該当なし}"
   note "Depends:    $dependency_summary"
   note "Context:    $tracking_context_summary"
   note "Branch:     $branch_name"
@@ -427,7 +410,6 @@ HANDOFF_APPEND
     -v worktree="$worktree_path" \
     -v base_ref="$base_ref" \
     -v base_sha="$base_sha" \
-    -v gate_commit="${gate_commit:-該当なし}" \
     -v owner="$safe_owner" '
       {
         gsub(/{{ISSUE_NUMBER}}/, issue_number)
@@ -438,7 +420,6 @@ HANDOFF_APPEND
         gsub(/{{WORKTREE_PATH}}/, worktree)
         gsub(/{{BASE_REF}}/, base_ref)
         gsub(/{{BASE_SHA}}/, base_sha)
-        gsub(/{{GATE_COMMIT}}/, gate_commit)
         gsub(/{{OWNER_PATHS}}/, owner)
         print
       }
@@ -448,7 +429,6 @@ HANDOFF_APPEND
 parse_start_options() {
   issue_arg=""
   base_ref="origin/main"
-  gate_commit=""
   fetch_requested="$1"
   open_requested=true
   shift
@@ -458,11 +438,6 @@ parse_start_options() {
       --base)
         [ "$#" -ge 2 ] || die "--baseには値が必要です"
         base_ref="$2"
-        shift 2
-        ;;
-      --gate-commit)
-        [ "$#" -ge 2 ] || die "--gate-commitには値が必要です"
-        gate_commit="$2"
         shift 2
         ;;
       --fetch)
@@ -512,17 +487,6 @@ run_plan_or_start() {
   validate_ignore_rules
   validate_dependencies "$base_sha"
   validate_active_path_conflicts
-
-  if gate_is_required; then
-    [ -n "$gate_commit" ] || die "Gate通過依存があります。--gate-commit <sha>を指定してください"
-  fi
-  if [ -n "$gate_commit" ]; then
-    gate_sha="$(git -C "$primary_root" rev-parse --verify "${gate_commit}^{commit}" 2>/dev/null)" ||
-      die "Gate Commitを解決できません: $gate_commit"
-    git -C "$primary_root" merge-base --is-ancestor "$gate_sha" "$base_sha" ||
-      die "Gate Commit $gate_sha が基準ref $base_ref に含まれていません"
-    gate_commit="$gate_sha"
-  fi
 
   print_plan
   [ "$action" = "plan" ] && return 0
