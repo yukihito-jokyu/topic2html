@@ -95,12 +95,8 @@ load_issue() {
   issue_state="$(gh issue view "$issue_number" --repo "$repo_slug" --json state --jq .state)"
   issue_url="$(gh issue view "$issue_number" --repo "$repo_slug" --json url --jq .url)"
 
-  task_id="$(
-    grep -Eo 'knowledge-task-id: L[0-9]+(-M[0-9]+)?(-S[0-9]+)?' "$ISSUE_BODY_FILE" |
-      head -1 |
-      awk '{print $2}'
-  )"
-  [ -n "$task_id" ] || die "Issue #${issue_number}にTask ID Markerがありません。初回起動準備としてIssue作成工程との接続を確認し、<!-- knowledge-task-id: Lx-My-Sz -->を同期してください"
+  task_id="$(task_id_from_file "$ISSUE_BODY_FILE")"
+  [ -n "$task_id" ] || die "Issue #${issue_number}にTask IDがありません。Issue本文とTask Mapからleaf Taskであることを確認してください"
   printf '%s\n' "$task_id" | grep -Eq '^L[0-9]+-M[0-9]+-S[0-9]+$' ||
     die "Issue #${issue_number}はtracking Taskです: ${task_id}。親Issueからleafへの展開手順に従ってください"
 
@@ -112,7 +108,6 @@ load_issue() {
     sed -nE 's/.*planning-snapshot: ([0-9a-f]{40}).*/\1/p' "$ISSUE_BODY_FILE" |
       head -1
   )"
-  [ -n "$planning_snapshot" ] || die "Issue #${issue_number}にPlanning snapshot SHAがありません。初回起動準備として既存Commitを再利用できるか確認し、<!-- planning-snapshot: <40桁SHA> -->を同期してください"
 
   owner_paths="$(
     awk -F '|' '
@@ -152,9 +147,14 @@ dependency_issue_numbers() {
 }
 
 task_id_from_file() {
-  grep -Eo 'knowledge-task-id: L[0-9]+(-M[0-9]+)?(-S[0-9]+)?' "$1" |
-    head -1 |
-    awk '{print $2}'
+  {
+    grep -Eo 'knowledge-task-id: L[0-9]+(-M[0-9]+)?(-S[0-9]+)?' "$1" |
+      head -1 |
+      awk '{print $2}'
+    grep -Eo 'Task ID:[[:space:]]*L[0-9]+(-M[0-9]+)?(-S[0-9]+)?' "$1" |
+      head -1 |
+      sed -E 's/Task ID:[[:space:]]*//'
+  } | head -1
 }
 
 is_ancestor_task() {
@@ -189,6 +189,16 @@ find_dependency_commit() {
     tail -1 || true
 }
 
+find_dependency_branch_commit() {
+  dep_issue="$1"
+  dep_task_id="$2"
+  dep_task_slug="$(printf '%s' "$dep_task_id" | tr '[:upper:]' '[:lower:]')"
+  dep_branch="task/issue-${dep_issue}-${dep_task_slug}"
+
+  git -C "$primary_root" rev-parse --verify "refs/remotes/origin/${dep_branch}^{commit}" 2>/dev/null ||
+    git -C "$primary_root" rev-parse --verify "refs/heads/${dep_branch}^{commit}" 2>/dev/null || true
+}
+
 validate_dependencies() {
   base_sha="$1"
   dependency_summary=""
@@ -198,7 +208,7 @@ validate_dependencies() {
     dep_body_file="$(mktemp "${TMPDIR:-/tmp}/manage-task-dependency.XXXXXX")"
     gh issue view "$dep_issue" --repo "$repo_slug" --json body --jq .body >"$dep_body_file"
     dep_task_id="$(task_id_from_file "$dep_body_file")"
-    [ -n "$dep_task_id" ] || die "依存Issue #${dep_issue}にTask ID Markerがありません"
+    [ -n "$dep_task_id" ] || die "依存Issue #${dep_issue}にTask IDがありません"
 
     if is_ancestor_task "$dep_task_id" "$task_id"; then
       tracking_context_summary="${tracking_context_summary}#${dep_issue}:${dep_task_id} "
@@ -210,14 +220,20 @@ validate_dependencies() {
     [ "$dep_state" = "CLOSED" ] || die "着手依存Issue #${dep_issue}が未完了です: $dep_state"
 
     dep_commit="$(find_dependency_commit "$dep_body_file")"
+    if [ -z "$dep_commit" ]; then
+      dep_commit="$(find_dependency_branch_commit "$dep_issue" "$dep_task_id")"
+      dep_evidence="Task branch"
+    else
+      dep_evidence="human-progress"
+    fi
     rm -f "$dep_body_file"
 
-    [ -n "$dep_commit" ] || die "依存Issue #${dep_issue}のhuman-progressに統合Commitがありません"
+    [ -n "$dep_commit" ] || die "依存Issue #${dep_issue}に統合Commitがありません。human-progressまたはTask branchを確認してください"
     git -C "$primary_root" cat-file -e "${dep_commit}^{commit}" 2>/dev/null ||
       die "依存Issue #${dep_issue}のCommitをlocalで解決できません: $dep_commit"
     git -C "$primary_root" merge-base --is-ancestor "$dep_commit" "$base_sha" ||
       die "依存Issue #${dep_issue}のCommit $dep_commit が基準refに含まれていません"
-    dependency_summary="${dependency_summary}#${dep_issue}:${dep_commit} "
+    dependency_summary="${dependency_summary}#${dep_issue}:${dep_commit}(${dep_evidence}) "
   done
 
   [ -n "$dependency_summary" ] || dependency_summary="該当なし"
@@ -467,10 +483,14 @@ run_plan_or_start() {
   base_sha="$(git -C "$primary_root" rev-parse --verify "${base_ref}^{commit}" 2>/dev/null)" ||
     die "基準refを解決できません: $base_ref"
 
-  git -C "$primary_root" cat-file -e "${planning_snapshot}^{commit}" 2>/dev/null ||
-    die "Planning snapshotをlocalで解決できません: $planning_snapshot"
-  git -C "$primary_root" merge-base --is-ancestor "$planning_snapshot" "$base_sha" ||
-    die "Planning snapshot $planning_snapshot が基準ref $base_ref に含まれていません"
+  if [ -z "$planning_snapshot" ]; then
+    planning_snapshot="$base_sha"
+  else
+    git -C "$primary_root" cat-file -e "${planning_snapshot}^{commit}" 2>/dev/null ||
+      die "Planning snapshotをlocalで解決できません: $planning_snapshot"
+    git -C "$primary_root" merge-base --is-ancestor "$planning_snapshot" "$base_sha" ||
+      die "Planning snapshot $planning_snapshot が基準ref $base_ref に含まれていません"
+  fi
 
   validate_ref_required_skills "$base_sha" "基準ref"
   validate_ignore_rules
