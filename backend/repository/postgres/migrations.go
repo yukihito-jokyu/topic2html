@@ -10,21 +10,56 @@ import (
 )
 
 const AdminAuthSchemaMigration = "001_admin_auth_schema"
+const AdminSessionCSRFCiphertextMigration = "002_admin_session_csrf_ciphertext"
 
 //go:embed migrations/001_admin_auth_schema.sql
 var adminAuthSchemaDDL string
 
+//go:embed migrations/002_admin_session_csrf_ciphertext.sql
+var adminSessionCSRFCiphertextDDL string
+
 // ApplyAdminAuthSchemaはmigrationを一つの明示transactionで冪等に適用します。
 func ApplyAdminAuthSchema(ctx context.Context, database *pgxpool.Pool) error {
-	return applyAdminAuthSchemaWithDDL(ctx, newPGXPool(database), adminAuthSchemaDDL)
+	return ApplyMigrations(ctx, database)
+}
+
+// ApplyMigrationsは承認済みmigrationを順序どおり適用します。
+func ApplyMigrations(ctx context.Context, database *pgxpool.Pool) error {
+	return applyMigrations(ctx, newPGXPool(database))
+}
+
+func applyMigrations(ctx context.Context, database pool) error {
+	for _, migration := range []struct {
+		version string
+		ddl     string
+	}{
+		{
+			version: AdminAuthSchemaMigration,
+			ddl:     adminAuthSchemaDDL,
+		},
+		{
+			version: AdminSessionCSRFCiphertextMigration,
+			ddl:     adminSessionCSRFCiphertextDDL,
+		},
+	} {
+		if err := applyMigrationWithDDL(ctx, database, migration.version, migration.ddl); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func applyAdminAuthSchema(ctx context.Context, database pool) error {
-	return applyAdminAuthSchemaWithDDL(ctx, database, adminAuthSchemaDDL)
+	return applyMigrationWithDDL(ctx, database, AdminAuthSchemaMigration, adminAuthSchemaDDL)
 }
 
 // applyAdminAuthSchemaWithDDLはテスト用DDLを適用します。
 func applyAdminAuthSchemaWithDDL(ctx context.Context, database pool, ddl string) error {
+	return applyMigrationWithDDL(ctx, database, AdminAuthSchemaMigration, ddl)
+}
+
+func applyMigrationWithDDL(ctx context.Context, database pool, versionName, ddl string) error {
 	transaction, err := database.Begin(ctx)
 	if err != nil {
 		return err
@@ -34,7 +69,7 @@ func applyAdminAuthSchemaWithDDL(ctx context.Context, database pool, ddl string)
 		return err
 	}
 	var version string
-	err = transaction.QueryRow(ctx, `SELECT version FROM schema_migrations WHERE version = $1`, AdminAuthSchemaMigration).Scan(&version)
+	err = transaction.QueryRow(ctx, `SELECT version FROM schema_migrations WHERE version = $1`, versionName).Scan(&version)
 	if err == nil {
 		return transaction.Commit(ctx)
 	}
@@ -44,7 +79,7 @@ func applyAdminAuthSchemaWithDDL(ctx context.Context, database pool, ddl string)
 	if _, err := transaction.Exec(ctx, ddl); err != nil {
 		return err
 	}
-	if _, err := transaction.Exec(ctx, `INSERT INTO schema_migrations (version, applied_at) VALUES ($1, CURRENT_TIMESTAMP)`, AdminAuthSchemaMigration); err != nil {
+	if _, err := transaction.Exec(ctx, `INSERT INTO schema_migrations (version, applied_at) VALUES ($1, CURRENT_TIMESTAMP)`, versionName); err != nil {
 		return err
 	}
 
