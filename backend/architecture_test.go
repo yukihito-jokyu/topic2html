@@ -23,12 +23,31 @@ func TestNamedLayersExistAndLegacyInternalDirectoryIsAbsent(t *testing.T) {
 		directory string
 		legacy    bool
 	}{
-		{name: "cmd", directory: "cmd"},
-		{name: "handler", directory: "handler"},
-		{name: "usecase", directory: "usecase"},
-		{name: "repository", directory: "repository"},
-		{name: "domain", directory: "domain"},
-		{name: "legacy internal", directory: "internal", legacy: true},
+		{
+			name:      "cmd",
+			directory: "cmd",
+		},
+		{
+			name:      "handler",
+			directory: "handler",
+		},
+		{
+			name:      "usecase",
+			directory: "usecase",
+		},
+		{
+			name:      "repository",
+			directory: "repository",
+		},
+		{
+			name:      "domain",
+			directory: "domain",
+		},
+		{
+			name:      "legacy internal",
+			directory: "internal",
+			legacy:    true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -55,10 +74,26 @@ func TestNamedLayerDependencies(t *testing.T) {
 		layer     string
 		forbidden []string
 	}{
-		{name: "domain", layer: "domain", forbidden: []string{modulePath, "github.com/gin-gonic/gin", "github.com/jackc/pgx", "net/http", "os"}},
-		{name: "usecase", layer: "usecase", forbidden: []string{modulePath + "handler/", modulePath + "repository/", modulePath + "cmd/", "github.com/gin-gonic/gin", "github.com/jackc/pgx", "net/http", "os"}},
-		{name: "repository", layer: "repository", forbidden: []string{modulePath + "handler/", modulePath + "cmd/", "github.com/gin-gonic/gin", "os"}},
-		{name: "handler", layer: "handler", forbidden: []string{modulePath + "repository/", modulePath + "cmd/", "os"}},
+		{
+			name:      "domain",
+			layer:     "domain",
+			forbidden: []string{modulePath, "github.com/gin-gonic/gin", "github.com/jackc/pgx", "net/http", "os"},
+		},
+		{
+			name:      "usecase",
+			layer:     "usecase",
+			forbidden: []string{modulePath + "handler/", modulePath + "repository/", modulePath + "cmd/", "github.com/gin-gonic/gin", "github.com/jackc/pgx", "net/http", "os"},
+		},
+		{
+			name:      "repository",
+			layer:     "repository",
+			forbidden: []string{modulePath + "handler/", modulePath + "cmd/", "github.com/gin-gonic/gin", "os"},
+		},
+		{
+			name:      "handler",
+			layer:     "handler",
+			forbidden: []string{modulePath + "repository/", modulePath + "cmd/", "os"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

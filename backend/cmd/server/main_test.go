@@ -1,11 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/yukihito-jokyu/topic2html/backend/repository/security"
+	usecaseauth "github.com/yukihito-jokyu/topic2html/backend/usecase/auth"
 )
 
 func TestRun(t *testing.T) {
@@ -16,10 +21,31 @@ func TestRun(t *testing.T) {
 		wantError   bool
 		wantStarted bool
 	}{
-		{name: "invalid configuration", lookup: func(string) (string, bool) { return "", false }, wantError: true},
-		{name: "successful serve", lookup: lookup(validEnvironment()), wantStarted: true},
-		{name: "closed server", lookup: lookup(validEnvironment()), serveResult: http.ErrServerClosed, wantStarted: true},
-		{name: "serve failure", lookup: lookup(validEnvironment()), serveResult: errors.New("serve failed"), wantError: true, wantStarted: true},
+		{
+			name: "invalid configuration",
+			lookup: func(string) (string, bool) {
+				return "", false
+			},
+			wantError: true,
+		},
+		{
+			name:        "successful serve",
+			lookup:      lookup(validEnvironment()),
+			wantStarted: true,
+		},
+		{
+			name:        "closed server",
+			lookup:      lookup(validEnvironment()),
+			serveResult: http.ErrServerClosed,
+			wantStarted: true,
+		},
+		{
+			name:        "serve failure",
+			lookup:      lookup(validEnvironment()),
+			serveResult: errors.New("serve failed"),
+			wantError:   true,
+			wantStarted: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -44,18 +70,75 @@ func TestRun(t *testing.T) {
 	}
 }
 
+func TestRunDependencyFailures(t *testing.T) {
+	poolFailure := productionDependencies()
+	poolFailure.newPool = func(context.Context, string) (*pgxpool.Pool, error) {
+		return nil, errors.New("pool unavailable")
+	}
+	if err := runWithDependencies(lookup(validEnvironment()), func(*http.Server) error {
+		t.Fatal("server started")
+
+		return nil
+	}, poolFailure); err == nil {
+		t.Fatal("pool failure succeeded")
+	}
+	protectionFailure := productionDependencies()
+	protectionFailure.newPool = func(context.Context, string) (*pgxpool.Pool, error) {
+		return nil, nil
+	}
+	protectionFailure.closePool = func(*pgxpool.Pool) {}
+	protectionFailure.newProtection = func(string) (*security.Service, error) {
+		return nil, errors.New("protection unavailable")
+	}
+	if err := runWithDependencies(lookup(validEnvironment()), func(*http.Server) error {
+		t.Fatal("server started")
+
+		return nil
+	}, protectionFailure); err == nil {
+		t.Fatal("protection failure succeeded")
+	}
+	serviceFailure := productionDependencies()
+	serviceFailure.newPool = func(context.Context, string) (*pgxpool.Pool, error) {
+		return nil, nil
+	}
+	serviceFailure.closePool = func(*pgxpool.Pool) {}
+	serviceFailure.newService = func(usecaseauth.Dependencies, string, string) (*usecaseauth.Service, error) {
+		return nil, errors.New("service unavailable")
+	}
+	if err := runWithDependencies(lookup(validEnvironment()), func(*http.Server) error {
+		t.Fatal("server started")
+
+		return nil
+	}, serviceFailure); err == nil {
+		t.Fatal("service failure succeeded")
+	}
+	successfulDependencies := productionDependencies()
+	successfulDependencies.newPool = func(context.Context, string) (*pgxpool.Pool, error) {
+		return nil, nil
+	}
+	closed := false
+	successfulDependencies.closePool = func(*pgxpool.Pool) { closed = true }
+	if err := runWithDependencies(lookup(validEnvironment()), func(*http.Server) error {
+		return http.ErrServerClosed
+	}, successfulDependencies); err != nil {
+		t.Fatalf("nil pool run error = %v", err)
+	}
+	if !closed {
+		t.Fatal("pool was not closed")
+	}
+}
+
 func TestStart(t *testing.T) {
 	originalLookup := lookupEnvironment
 	originalListen := listenAndServe
-	originalPrint := printError
+	originalLogWriter := serverLogWriter
 	originalExit := exitProcess
 	t.Cleanup(func() {
 		lookupEnvironment = originalLookup
 		listenAndServe = originalListen
-		printError = originalPrint
+		serverLogWriter = originalLogWriter
 		exitProcess = originalExit
 	})
-
 	tests := []struct {
 		name     string
 		lookup   LookupEnv
@@ -63,19 +146,31 @@ func TestStart(t *testing.T) {
 		wantLog  bool
 		wantExit bool
 	}{
-		{name: "start with valid configuration", lookup: lookup(validEnvironment()), invoke: start},
-		{name: "main with invalid configuration", lookup: func(string) (string, bool) { return "", false }, invoke: main, wantLog: true, wantExit: true},
+		{
+			name:   "start with valid configuration",
+			lookup: lookup(validEnvironment()),
+			invoke: start,
+		},
+		{
+			name: "main with invalid configuration",
+			lookup: func(string) (string, bool) {
+				return "", false
+			},
+			invoke:   main,
+			wantLog:  true,
+			wantExit: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logged := false
+			var output bytes.Buffer
 			exited := false
 			lookupEnvironment = tt.lookup
 			listenAndServe = func(*http.Server) error { return http.ErrServerClosed }
-			printError = func(...any) { logged = true }
+			serverLogWriter = &output
 			exitProcess = func(int) { exited = true }
 			tt.invoke()
-			if logged != tt.wantLog {
+			if logged := output.Len() > 0; logged != tt.wantLog {
 				t.Errorf("logged = %t, want %t", logged, tt.wantLog)
 			}
 			if exited != tt.wantExit {

@@ -18,6 +18,10 @@
 
 ユーザーから成果物、説明、質問、レビュー、進行、判断方法への指摘を受けたら、個別修正だけで足りるか、Skill・workflow規約の再発可能な不足かを判定する。後者は`skill-maintainer`で最小修正とregression scenarioを追加し、前者はSkillを不必要に一般化しない。
 
+## コードスタイル
+
+- Goの複合リテラルで`key: value`を記述する場合は、テストを含め、各フィールドを必ず別行にする。
+
 ## 検証
 
 - 親READMEと、より近い`AGENTS.md`にあるTask・lint・test・build手順を使う。

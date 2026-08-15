@@ -44,7 +44,11 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 
 				return nil
 			},
-			wantCalls: map[string]int{"/discovery": 1, "/token": 1, "/jwks": 1},
+			wantCalls: map[string]int{
+				"/discovery": 1,
+				"/token":     1,
+				"/jwks":      1,
+			},
 			wantToken: true,
 			wantJWKS:  true,
 		},
@@ -59,7 +63,9 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 				return err
 			},
 			wantError: true,
-			wantCalls: map[string]int{"/discovery": 1},
+			wantCalls: map[string]int{
+				"/discovery": 1,
+			},
 		},
 		{
 			name: "invalid token endpoint is rejected",
@@ -72,7 +78,9 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 				return err
 			},
 			wantError: true,
-			wantCalls: map[string]int{"/discovery": 1},
+			wantCalls: map[string]int{
+				"/discovery": 1,
+			},
 		},
 		{
 			name: "invalid JWKS endpoint is rejected",
@@ -85,7 +93,9 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 				return err
 			},
 			wantError: true,
-			wantCalls: map[string]int{"/discovery": 1},
+			wantCalls: map[string]int{
+				"/discovery": 1,
+			},
 		},
 		{
 			name:      "discovery failure is not retried",
@@ -96,7 +106,9 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 				return err
 			},
 			wantError: true,
-			wantCalls: map[string]int{"/discovery": 1},
+			wantCalls: map[string]int{
+				"/discovery": 1,
+			},
 		},
 		{
 			name:      "invalid token JSON is rejected",
@@ -107,7 +119,9 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 				return err
 			},
 			wantError: true,
-			wantCalls: map[string]int{"/token": 1},
+			wantCalls: map[string]int{
+				"/token": 1,
+			},
 			wantToken: true,
 		},
 		{
@@ -119,7 +133,9 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 				return err
 			},
 			wantError: true,
-			wantCalls: map[string]int{"/token": 1},
+			wantCalls: map[string]int{
+				"/token": 1,
+			},
 			wantToken: true,
 		},
 		{
@@ -131,7 +147,9 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 				return err
 			},
 			wantError: true,
-			wantCalls: map[string]int{"/token": 1},
+			wantCalls: map[string]int{
+				"/token": 1,
+			},
 			wantToken: true,
 		},
 		{
@@ -143,8 +161,10 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 				return err
 			},
 			wantError: true,
-			wantCalls: map[string]int{"/jwks": 1},
-			wantJWKS:  true,
+			wantCalls: map[string]int{
+				"/jwks": 1,
+			},
+			wantJWKS: true,
 		},
 		{
 			name:      "invalid JWKS response is rejected",
@@ -155,8 +175,10 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 				return err
 			},
 			wantError: true,
-			wantCalls: map[string]int{"/jwks": 1},
-			wantJWKS:  true,
+			wantCalls: map[string]int{
+				"/jwks": 1,
+			},
+			wantJWKS: true,
 		},
 	}
 	for _, tt := range tests {
@@ -167,7 +189,6 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 			}
 			httpServer := httptest.NewServer(server)
 			t.Cleanup(httpServer.Close)
-
 			err := tt.operation(NewClient(httpServer.Client().Transport), httpServer.URL)
 			if (err != nil) != tt.wantError {
 				t.Fatalf("operation error = %v, wantError %t", err, tt.wantError)

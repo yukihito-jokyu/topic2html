@@ -73,16 +73,40 @@ type fakePool struct {
 }
 
 func (p fakePool) Begin(context.Context) (tx, error) { return p.transaction, p.err }
-func testStore(tx *fakeTx) *Store                    { return &Store{pool: fakePool{transaction: tx}} }
+func testStore(tx *fakeTx) *Store {
+	return &Store{
+		pool: fakePool{
+			transaction: tx,
+		},
+	}
+}
 func testTransaction() auth.OAuthTransaction {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	return auth.OAuthTransaction{ID: "00000000-0000-0000-0000-000000000001", ReferenceHash: auth.Hash{1}, StateHash: auth.Hash{2}, NonceHash: auth.Hash{3}, PKCEVerifierCiphertext: auth.Ciphertext{4}, ReturnPath: "/admin", CreatedAt: now, ExpiresAt: now.Add(auth.OAuthTransactionLifetime)}
+	return auth.OAuthTransaction{
+		ID:                     "00000000-0000-0000-0000-000000000001",
+		ReferenceHash:          auth.Hash{1},
+		StateHash:              auth.Hash{2},
+		NonceHash:              auth.Hash{3},
+		PKCEVerifierCiphertext: auth.Ciphertext{4},
+		ReturnPath:             "/admin",
+		CreatedAt:              now,
+		ExpiresAt:              now.Add(auth.OAuthTransactionLifetime),
+	}
 }
 func testSession() auth.AdminSession {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	return auth.AdminSession{ID: "00000000-0000-0000-0000-000000000001", ReferenceHash: auth.Hash{1}, AuthorizedEmail: "admin@example.test", CSRFTokenHash: auth.Hash{2}, CreatedAt: now, LastMutationAt: now, AbsoluteExpiresAt: now.Add(auth.SessionAbsoluteLifetime), IdleExpiresAt: now.Add(auth.SessionIdleLifetime)}
+	return auth.AdminSession{
+		ID:                "00000000-0000-0000-0000-000000000001",
+		ReferenceHash:     auth.Hash{1},
+		AuthorizedEmail:   "admin@example.test",
+		CSRFTokenHash:     auth.Hash{2},
+		CreatedAt:         now,
+		LastMutationAt:    now,
+		AbsoluteExpiresAt: now.Add(auth.SessionAbsoluteLifetime),
+		IdleExpiresAt:     now.Add(auth.SessionIdleLifetime),
+	}
 }
 
 func TestStoreWrites(t *testing.T) {
@@ -111,13 +135,17 @@ func TestStoreReadsAndUpdates(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 	hash := auth.Hash{1}
-	if _, ok, err := testStore(&fakeTx{rows: []error{pgx.ErrNoRows}}).ConsumeOAuthTransaction(ctx, hash, hash, now); err != nil || ok {
+	if _, ok, err := testStore(&fakeTx{
+		rows: []error{pgx.ErrNoRows},
+	}).ConsumeOAuthTransaction(ctx, hash, hash, now); err != nil || ok {
 		t.Fatalf("consume missing: %v %t", err, ok)
 	}
 	if _, ok, err := testStore(&fakeTx{}).ConsumeOAuthTransaction(ctx, hash, hash, now); err != nil || !ok {
 		t.Fatalf("consume: %v %t", err, ok)
 	}
-	if _, ok, err := testStore(&fakeTx{rows: []error{pgx.ErrNoRows}}).FindAdminSession(ctx, hash); err != nil || ok {
+	if _, ok, err := testStore(&fakeTx{
+		rows: []error{pgx.ErrNoRows},
+	}).FindAdminSession(ctx, hash); err != nil || ok {
 		t.Fatalf("find missing: %v %t", err, ok)
 	}
 	if _, ok, err := testStore(&fakeTx{}).FindAdminSession(ctx, hash); err != nil || !ok {
@@ -139,7 +167,9 @@ func TestStoreReadsAndUpdates(t *testing.T) {
 	if _, err := testStore(&fakeTx{}).RunAdminStateChange(ctx, hash, now, nil); err == nil {
 		t.Fatal("nil admin state change operation succeeded")
 	}
-	if updated, err := testStore(&fakeTx{tag: fakeTag(0)}).RunAdminStateChange(ctx, hash, now, func(context.Context) error { return nil }); err != nil || updated {
+	if updated, err := testStore(&fakeTx{
+		tag: fakeTag(0),
+	}).RunAdminStateChange(ctx, hash, now, func(context.Context) error { return nil }); err != nil || updated {
 		t.Fatalf("missing session state change: updated=%t err=%v", updated, err)
 	}
 }
@@ -152,67 +182,127 @@ func TestStoreFailures(t *testing.T) {
 	hash := auth.Hash{1}
 	now := time.Now()
 	for _, call := range []func() error{
-		func() error { return (&Store{pool: fakePool{err: boom}}).ReplaceOAuthTransaction(ctx, nil, record) },
-		func() error { return testStore(&fakeTx{exec: []error{boom}}).ReplaceOAuthTransaction(ctx, nil, record) },
 		func() error {
-			return testStore(&fakeTx{exec: []error{boom}}).ReplaceOAuthTransaction(ctx, auth.Hash{9}, record)
+			return (&Store{
+				pool: fakePool{
+					err: boom,
+				},
+			}).ReplaceOAuthTransaction(ctx, nil, record)
 		},
-		func() error { return testStore(&fakeTx{commit: boom}).ReplaceOAuthTransaction(ctx, nil, record) },
-		func() error { return (&Store{pool: fakePool{err: boom}}).CreateAdminSession(ctx, session) },
-		func() error { return testStore(&fakeTx{exec: []error{boom}}).CreateAdminSession(ctx, session) },
-		func() error { return testStore(&fakeTx{commit: boom}).CreateAdminSession(ctx, session) },
 		func() error {
-			_, _, e := (&Store{pool: fakePool{err: boom}}).ConsumeOAuthTransaction(ctx, hash, hash, now)
+			return testStore(&fakeTx{
+				exec: []error{boom},
+			}).ReplaceOAuthTransaction(ctx, nil, record)
+		},
+		func() error {
+			return testStore(&fakeTx{
+				exec: []error{boom},
+			}).ReplaceOAuthTransaction(ctx, auth.Hash{9}, record)
+		},
+		func() error {
+			return testStore(&fakeTx{
+				commit: boom,
+			}).ReplaceOAuthTransaction(ctx, nil, record)
+		},
+		func() error {
+			return (&Store{
+				pool: fakePool{
+					err: boom,
+				},
+			}).CreateAdminSession(ctx, session)
+		},
+		func() error {
+			return testStore(&fakeTx{
+				exec: []error{boom},
+			}).CreateAdminSession(ctx, session)
+		},
+		func() error {
+			return testStore(&fakeTx{
+				commit: boom,
+			}).CreateAdminSession(ctx, session)
+		},
+		func() error {
+			_, _, e := (&Store{
+				pool: fakePool{
+					err: boom,
+				},
+			}).ConsumeOAuthTransaction(ctx, hash, hash, now)
 
 			return e
 		},
 		func() error {
-			_, _, e := testStore(&fakeTx{rows: []error{boom}}).ConsumeOAuthTransaction(ctx, hash, hash, now)
+			_, _, e := testStore(&fakeTx{
+				rows: []error{boom},
+			}).ConsumeOAuthTransaction(ctx, hash, hash, now)
 
 			return e
 		},
 		func() error {
-			_, _, e := testStore(&fakeTx{commit: boom}).ConsumeOAuthTransaction(ctx, hash, hash, now)
+			_, _, e := testStore(&fakeTx{
+				commit: boom,
+			}).ConsumeOAuthTransaction(ctx, hash, hash, now)
 
 			return e
 		},
 		func() error {
-			_, _, e := (&Store{pool: fakePool{err: boom}}).FindAdminSession(ctx, hash)
+			_, _, e := (&Store{
+				pool: fakePool{
+					err: boom,
+				},
+			}).FindAdminSession(ctx, hash)
 
 			return e
 		},
 		func() error {
-			_, _, e := testStore(&fakeTx{rows: []error{boom}}).FindAdminSession(ctx, hash)
+			_, _, e := testStore(&fakeTx{
+				rows: []error{boom},
+			}).FindAdminSession(ctx, hash)
 
 			return e
 		},
 		func() error {
-			_, _, e := testStore(&fakeTx{commit: boom}).FindAdminSession(ctx, hash)
+			_, _, e := testStore(&fakeTx{
+				commit: boom,
+			}).FindAdminSession(ctx, hash)
 
 			return e
 		},
 		func() error {
-			_, e := (&Store{pool: fakePool{err: boom}}).RevokeAdminSession(ctx, hash, now)
+			_, e := (&Store{
+				pool: fakePool{
+					err: boom,
+				},
+			}).RevokeAdminSession(ctx, hash, now)
 
 			return e
 		},
 		func() error {
-			_, e := testStore(&fakeTx{exec: []error{boom}}).RevokeAdminSession(ctx, hash, now)
+			_, e := testStore(&fakeTx{
+				exec: []error{boom},
+			}).RevokeAdminSession(ctx, hash, now)
 
 			return e
 		},
 		func() error {
-			_, e := testStore(&fakeTx{commit: boom}).RevokeAdminSession(ctx, hash, now)
+			_, e := testStore(&fakeTx{
+				commit: boom,
+			}).RevokeAdminSession(ctx, hash, now)
 
 			return e
 		},
 		func() error {
-			_, e := (&Store{pool: fakePool{err: boom}}).RunAdminStateChange(ctx, hash, now, func(context.Context) error { return nil })
+			_, e := (&Store{
+				pool: fakePool{
+					err: boom,
+				},
+			}).RunAdminStateChange(ctx, hash, now, func(context.Context) error { return nil })
 
 			return e
 		},
 		func() error {
-			_, e := testStore(&fakeTx{exec: []error{boom}}).RunAdminStateChange(ctx, hash, now, func(context.Context) error { return nil })
+			_, e := testStore(&fakeTx{
+				exec: []error{boom},
+			}).RunAdminStateChange(ctx, hash, now, func(context.Context) error { return nil })
 
 			return e
 		},
@@ -222,16 +312,34 @@ func TestStoreFailures(t *testing.T) {
 			return e
 		},
 		func() error {
-			_, e := testStore(&fakeTx{commit: boom}).RunAdminStateChange(ctx, hash, now, func(context.Context) error { return nil })
+			_, e := testStore(&fakeTx{
+				commit: boom,
+			}).RunAdminStateChange(ctx, hash, now, func(context.Context) error { return nil })
 
 			return e
 		},
-		func() error { return (&Store{pool: fakePool{err: boom}}).DeleteExpiredProtectedRecords(ctx, now) },
-		func() error { return testStore(&fakeTx{exec: []error{boom}}).DeleteExpiredProtectedRecords(ctx, now) },
 		func() error {
-			return testStore(&fakeTx{exec: []error{nil, boom}}).DeleteExpiredProtectedRecords(ctx, now)
+			return (&Store{
+				pool: fakePool{
+					err: boom,
+				},
+			}).DeleteExpiredProtectedRecords(ctx, now)
 		},
-		func() error { return testStore(&fakeTx{commit: boom}).DeleteExpiredProtectedRecords(ctx, now) },
+		func() error {
+			return testStore(&fakeTx{
+				exec: []error{boom},
+			}).DeleteExpiredProtectedRecords(ctx, now)
+		},
+		func() error {
+			return testStore(&fakeTx{
+				exec: []error{nil, boom},
+			}).DeleteExpiredProtectedRecords(ctx, now)
+		},
+		func() error {
+			return testStore(&fakeTx{
+				commit: boom,
+			}).DeleteExpiredProtectedRecords(ctx, now)
+		},
 	} {
 		if err := call(); !errors.Is(err, boom) {
 			t.Fatalf("error=%v", err)
@@ -241,9 +349,11 @@ func TestStoreFailures(t *testing.T) {
 
 func TestPGXAdapters(t *testing.T) {
 	ctx := context.Background()
-	transaction, err := (pgxPool{begin: func(context.Context) (pgxTransaction, error) {
-		return fakePGXTx{}, nil
-	}}).Begin(ctx)
+	transaction, err := (pgxPool{
+		begin: func(context.Context) (pgxTransaction, error) {
+			return fakePGXTx{}, nil
+		},
+	}).Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +369,6 @@ func TestPGXAdapters(t *testing.T) {
 	if err := transaction.Rollback(ctx); err != nil {
 		t.Fatal(err)
 	}
-
 	pool, err := pgxpool.New(ctx, "postgres://localhost:1/topic2html")
 	if err != nil {
 		t.Fatal(err)

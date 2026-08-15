@@ -41,7 +41,6 @@ func TestAdminAuthSchemaIntegration(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT version FROM schema_migrations WHERE version = $1`, AdminAuthSchemaMigration).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-
 	store := NewStore(pool)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	first := integrationTransaction(now, 1)
@@ -98,7 +97,6 @@ func TestAdminAuthSchemaIntegration(t *testing.T) {
 	if consumed != 1 {
 		t.Fatalf("concurrent consume count = %d, want 1", consumed)
 	}
-
 	session := integrationSession(now, 4)
 	if err := store.CreateAdminSession(ctx, session); err != nil {
 		t.Fatal(err)
@@ -150,7 +148,6 @@ func TestAdminAuthSchemaIntegration(t *testing.T) {
 	if revoked, err := store.RevokeAdminSession(ctx, session.ReferenceHash, now); err != nil || revoked {
 		t.Fatalf("repeat revoke: revoked=%t err=%v", revoked, err)
 	}
-
 	expiredTransaction := integrationTransaction(now.Add(-auth.ProtectedRecordRetention-auth.OAuthTransactionLifetime-time.Microsecond), 5)
 	expiredSession := integrationSession(now.Add(-auth.ProtectedRecordRetention-auth.SessionAbsoluteLifetime-time.Microsecond), 6)
 	boundaryTransaction := integrationTransaction(now.Add(-auth.ProtectedRecordRetention-auth.OAuthTransactionLifetime), 8)
@@ -275,11 +272,29 @@ func assertSessionIdleDeadline(t *testing.T, ctx context.Context, pool *pgxpool.
 }
 
 func integrationTransaction(createdAt time.Time, sequence int) auth.OAuthTransaction {
-	return auth.OAuthTransaction{ID: integrationID(sequence), ReferenceHash: integrationHash(sequence, 1), StateHash: integrationHash(sequence, 2), NonceHash: integrationHash(sequence, 3), PKCEVerifierCiphertext: auth.Ciphertext(integrationHash(sequence, 4)), ReturnPath: "/admin", CreatedAt: createdAt, ExpiresAt: createdAt.Add(auth.OAuthTransactionLifetime)}
+	return auth.OAuthTransaction{
+		ID:                     integrationID(sequence),
+		ReferenceHash:          integrationHash(sequence, 1),
+		StateHash:              integrationHash(sequence, 2),
+		NonceHash:              integrationHash(sequence, 3),
+		PKCEVerifierCiphertext: auth.Ciphertext(integrationHash(sequence, 4)),
+		ReturnPath:             "/admin",
+		CreatedAt:              createdAt,
+		ExpiresAt:              createdAt.Add(auth.OAuthTransactionLifetime),
+	}
 }
 
 func integrationSession(createdAt time.Time, sequence int) auth.AdminSession {
-	return auth.AdminSession{ID: integrationID(sequence), ReferenceHash: integrationHash(sequence, 5), AuthorizedEmail: "admin@example.test", CSRFTokenHash: integrationHash(sequence, 6), CreatedAt: createdAt, LastMutationAt: createdAt, AbsoluteExpiresAt: createdAt.Add(auth.SessionAbsoluteLifetime), IdleExpiresAt: createdAt.Add(auth.SessionIdleLifetime)}
+	return auth.AdminSession{
+		ID:                integrationID(sequence),
+		ReferenceHash:     integrationHash(sequence, 5),
+		AuthorizedEmail:   "admin@example.test",
+		CSRFTokenHash:     integrationHash(sequence, 6),
+		CreatedAt:         createdAt,
+		LastMutationAt:    createdAt,
+		AbsoluteExpiresAt: createdAt.Add(auth.SessionAbsoluteLifetime),
+		IdleExpiresAt:     createdAt.Add(auth.SessionIdleLifetime),
+	}
 }
 
 func integrationHash(sequence, field int) auth.Hash {

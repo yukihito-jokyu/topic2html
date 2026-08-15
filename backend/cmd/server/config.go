@@ -30,7 +30,6 @@ func loadConfig(lookup LookupEnv) (Config, error) {
 	if lookup == nil {
 		return Config{}, errors.New("configuration lookup is required")
 	}
-
 	origin, err := required(lookup, "TOPIC2HTML_TRUSTED_APP_ORIGIN")
 	if err != nil {
 		return Config{}, err
@@ -65,12 +64,19 @@ func loadConfig(lookup LookupEnv) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-
 	callback := *parsedOrigin
 	callback.Path = callbackPath
 	callback.RawPath = ""
 
-	return Config{TrustedAppOrigin: parsedOrigin.String(), OAuthCallbackURI: callback.String(), GoogleClientID: clientID, GoogleSecret: clientSecret, AllowedEmail: allowedEmail, DatabaseURL: databaseURL, ProtectionKey: protectionKey}, nil
+	return Config{
+		TrustedAppOrigin: parsedOrigin.String(),
+		OAuthCallbackURI: callback.String(),
+		GoogleClientID:   clientID,
+		GoogleSecret:     clientSecret,
+		AllowedEmail:     allowedEmail,
+		DatabaseURL:      databaseURL,
+		ProtectionKey:    protectionKey,
+	}, nil
 }
 
 func required(lookup LookupEnv, name string) (string, error) {

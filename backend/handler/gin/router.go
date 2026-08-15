@@ -1,14 +1,20 @@
 package ginadapter
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
+	"github.com/yukihito-jokyu/topic2html/backend/observability"
+	usecaseauth "github.com/yukihito-jokyu/topic2html/backend/usecase/auth"
+)
 
 // NewRouterはHTTPルーターを作成します。
-func NewRouter() *gin.Engine {
+func NewRouter(service usecaseauth.OAuthService, logger observability.EventLogger) *gin.Engine {
 	router := gin.New()
-	router.Use(gin.Recovery())
-	router.GET("/health", func(c *gin.Context) {
-		c.Status(204)
-	})
+	oauthHandler := NewOAuthHandler(service, logger)
+	router.HandleMethodNotAllowed = true
+	router.Use(safeRecovery(logger), requestLog(logger))
+	router.GET("/health", healthHandler)
+	router.POST("/admin/auth/google/start", noStore, oauthHandler.Start)
+	router.GET("/auth/google/callback", noStore, oauthHandler.Callback)
 
 	return router
 }
