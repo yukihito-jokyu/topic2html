@@ -28,7 +28,10 @@ func NewClient(transport http.RoundTripper) *Client {
 	}
 
 	return &Client{
-		httpClient: &http.Client{Transport: transport, Timeout: RequestTimeout},
+		httpClient: &http.Client{
+			Transport: transport,
+			Timeout:   RequestTimeout,
+		},
 		newRequest: http.NewRequestWithContext,
 	}
 }
@@ -48,6 +51,7 @@ type Discovery struct {
 	AuthorizationEndpoint string `json:"authorization_endpoint"`
 	TokenEndpoint         string `json:"token_endpoint"`
 	JWKSURI               string `json:"jwks_uri"`
+	Issuer                string `json:"issuer"`
 }
 
 // TokenResponseはToken交換の安全な応答です。
