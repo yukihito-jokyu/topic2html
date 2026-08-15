@@ -1,0 +1,211 @@
+package main
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestLoadConfig(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		lookup    LookupEnv
+		configure func(map[string]string)
+		wantURI   string
+		wantError bool
+	}{
+		{name: "valid", lookup: lookup(validEnvironment()), wantURI: "https://admin.example.test/auth/google/callback"},
+		{name: "nil lookup", wantError: true},
+		{name: "missing secret", configure: func(env map[string]string) { delete(env, "TOPIC2HTML_GOOGLE_CLIENT_SECRET") }, wantError: true},
+		{name: "missing client ID", configure: func(env map[string]string) { delete(env, "TOPIC2HTML_GOOGLE_CLIENT_ID") }, wantError: true},
+		{name: "missing email", configure: func(env map[string]string) { delete(env, "TOPIC2HTML_ALLOWED_EMAIL") }, wantError: true},
+		{name: "missing database URL", configure: func(env map[string]string) { delete(env, "TOPIC2HTML_DATABASE_URL") }, wantError: true},
+		{name: "missing protection key", configure: func(env map[string]string) { delete(env, "TOPIC2HTML_PROTECTION_KEY") }, wantError: true},
+		{name: "origin has path", configure: func(env map[string]string) { env["TOPIC2HTML_TRUSTED_APP_ORIGIN"] = "https://admin.example.test/admin" }, wantError: true},
+		{name: "non loopback HTTP origin", configure: func(env map[string]string) { env["TOPIC2HTML_TRUSTED_APP_ORIGIN"] = "http://admin.example.test" }, wantError: true},
+		{name: "display name email", configure: func(env map[string]string) { env["TOPIC2HTML_ALLOWED_EMAIL"] = "Admin <admin@example.test>" }, wantError: true},
+		{name: "non postgres database URL", configure: func(env map[string]string) {
+			env["TOPIC2HTML_DATABASE_URL"] = "mysql://user:password@db.example.test/app"
+		}, wantError: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lookupEnv := tt.lookup
+			if tt.configure != nil {
+				env := validEnvironment()
+				tt.configure(env)
+				lookupEnv = lookup(env)
+			}
+			cfg, err := loadConfig(lookupEnv)
+			if (err != nil) != tt.wantError {
+				t.Fatalf("loadConfig() error = %v, wantError %t", err, tt.wantError)
+			}
+			if !tt.wantError && cfg.OAuthCallbackURI != tt.wantURI {
+				t.Errorf("OAuthCallbackURI = %q, want %q", cfg.OAuthCallbackURI, tt.wantURI)
+			}
+		})
+	}
+}
+
+func TestLoadConfigDoesNotExposeValues(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		key   string
+		value string
+	}{
+		{name: "database URL", key: "TOPIC2HTML_DATABASE_URL", value: "only-for-test-not-a-production-secret"},
+		{name: "origin", key: "TOPIC2HTML_TRUSTED_APP_ORIGIN", value: "http://admin.example.test/private"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := validEnvironment()
+			env[tt.key] = tt.value
+			_, err := loadConfig(lookup(env))
+			if err == nil {
+				t.Fatal("loadConfig() succeeded, want error")
+			}
+			if strings.Contains(err.Error(), tt.value) {
+				t.Fatalf("error exposed a configuration value: %v", err)
+			}
+		})
+	}
+}
+
+func TestRequired(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		value     string
+		present   bool
+		wantError bool
+	}{
+		{name: "value", value: "configured", present: true},
+		{name: "missing", wantError: true},
+		{name: "blank", value: " \t", present: true, wantError: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := required(func(string) (string, bool) { return tt.value, tt.present }, "SETTING")
+			if (err != nil) != tt.wantError {
+				t.Fatalf("required() error = %v, wantError %t", err, tt.wantError)
+			}
+			if got != tt.value && !tt.wantError {
+				t.Errorf("required() = %q, want %q", got, tt.value)
+			}
+		})
+	}
+}
+
+func TestTrustedOrigin(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		value     string
+		want      string
+		wantError bool
+	}{
+		{name: "HTTPS", value: "https://admin.example.test", want: "https://admin.example.test"},
+		{name: "loopback hostname", value: "http://localhost:8080", want: "http://localhost:8080"},
+		{name: "loopback IPv4", value: "http://127.0.0.1:8080", want: "http://127.0.0.1:8080"},
+		{name: "invalid", value: "://", wantError: true},
+		{name: "relative", value: "/admin", wantError: true},
+		{name: "without host", value: "https:", wantError: true},
+		{name: "user info", value: "https://user@admin.example.test", wantError: true},
+		{name: "path", value: "https://admin.example.test/admin", wantError: true},
+		{name: "query", value: "https://admin.example.test?next=admin", wantError: true},
+		{name: "fragment", value: "https://admin.example.test#admin", wantError: true},
+		{name: "remote HTTP", value: "http://admin.example.test", wantError: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := trustedOrigin(tt.value)
+			if (err != nil) != tt.wantError {
+				t.Fatalf("trustedOrigin() error = %v, wantError %t", err, tt.wantError)
+			}
+			if !tt.wantError && got.String() != tt.want {
+				t.Errorf("trustedOrigin() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsLoopbackHost(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		host string
+		want bool
+	}{
+		{name: "localhost", host: "localhost", want: true},
+		{name: "mixed case localhost", host: "LOCALHOST", want: true},
+		{name: "IPv4", host: "127.0.0.1", want: true},
+		{name: "IPv6", host: "::1", want: true},
+		{name: "remote", host: "admin.example.test", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isLoopbackHost(tt.host); got != tt.want {
+				t.Errorf("isLoopbackHost(%q) = %t, want %t", tt.host, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExactEmail(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		value     string
+		wantError bool
+	}{
+		{name: "valid", value: "admin@example.test"},
+		{name: "invalid", value: "admin", wantError: true},
+		{name: "display name", value: "Admin <admin@example.test>", wantError: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := exactEmail(tt.value); (err != nil) != tt.wantError {
+				t.Errorf("exactEmail(%q) error = %v, wantError %t", tt.value, err, tt.wantError)
+			}
+		})
+	}
+}
+
+func TestPostgresURL(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		value     string
+		wantError bool
+	}{
+		{name: "postgres", value: "postgres://app:password@db.example.test/app"},
+		{name: "postgresql", value: "postgresql://app:password@db.example.test/app"},
+		{name: "invalid", value: "://", wantError: true},
+		{name: "wrong scheme", value: "mysql://app:password@db.example.test/app", wantError: true},
+		{name: "without host", value: "postgres://app:password@/app", wantError: true},
+		{name: "without user", value: "postgres://db.example.test/app", wantError: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := postgresURL(tt.value); (err != nil) != tt.wantError {
+				t.Errorf("postgresURL(%q) error = %v, wantError %t", tt.value, err, tt.wantError)
+			}
+		})
+	}
+}
+
+func validEnvironment() map[string]string {
+	return map[string]string{
+		"TOPIC2HTML_TRUSTED_APP_ORIGIN":   "https://admin.example.test",
+		"TOPIC2HTML_GOOGLE_CLIENT_ID":     "test-client-id",
+		"TOPIC2HTML_GOOGLE_CLIENT_SECRET": "test-client-secret",
+		"TOPIC2HTML_ALLOWED_EMAIL":        "admin@example.test",
+		"TOPIC2HTML_DATABASE_URL":         "postgres://app:password@db.example.test:5432/topic2html",
+		"TOPIC2HTML_PROTECTION_KEY":       "test-protection-key",
+	}
+}
+
+func lookup(values map[string]string) LookupEnv {
+	return func(key string) (string, bool) { value, ok := values[key]; return value, ok }
+}
