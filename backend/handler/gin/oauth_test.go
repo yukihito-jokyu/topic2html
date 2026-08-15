@@ -187,8 +187,11 @@ func TestOAuthStartHTTPContract(t *testing.T) {
 			}
 			if tt.name == "success" {
 				request.AddCookie(&http.Cookie{
-					Name:  oauthTransactionCookie,
-					Value: "old",
+					Name:     oauthTransactionCookie,
+					Value:    "old",
+					Secure:   true,
+					HttpOnly: true,
+					SameSite: http.SameSiteLaxMode,
 				})
 			}
 			response := httptest.NewRecorder()
@@ -299,8 +302,11 @@ func TestOAuthCallbackHTTPContract(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/auth/google/callback"+tt.query, nil)
 			request.AddCookie(&http.Cookie{
-				Name:  oauthTransactionCookie,
-				Value: "tx",
+				Name:     oauthTransactionCookie,
+				Value:    "tx",
+				Secure:   true,
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
 			})
 			response := httptest.NewRecorder()
 			NewRouter(tt.service, observability.NewDiscardLogger()).ServeHTTP(response, request)
