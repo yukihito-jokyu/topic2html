@@ -1,0 +1,22 @@
+version: 1
+workflow: planning
+requirements: completed
+feature_planning: completed
+initial_design: completed
+current_feature: FEAT-001
+features:
+  FEAT-001:
+    design: completed
+    design_review: completed
+    implementation_readiness_review: completed
+    implementation_readiness_review_result: "2026-08-15: 画面設計仕様書を含む更新後設計を独立した実装者視点で監査し、画面状態・操作・API対応・アクセシビリティ・responsive・秘密情報非露出を含めpass"
+    human_design_review: approved
+    human_design_review_approval: "2026-08-15: 画面設計仕様書、再実施したdesign-reviewおよびimplementation-readiness-reviewを含む更新後の詳細設計を利用者が承認"
+    task_breakdown: completed
+    implementation_handoff: ready
+implementation_ready_features:
+  - FEAT-001
+pending_decisions: []
+source_issue:
+  number: 87
+  url: https://github.com/yukihito-jokyu/topic2html/issues/87
