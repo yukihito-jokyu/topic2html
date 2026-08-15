@@ -35,15 +35,16 @@ type OAuthTransaction struct {
 
 // AdminSessionはServer側のopaque session記録です。
 type AdminSession struct {
-	ID                string
-	ReferenceHash     Hash
-	AuthorizedEmail   string
-	CSRFTokenHash     Hash
-	CreatedAt         Time
-	LastMutationAt    Time
-	AbsoluteExpiresAt Time
-	IdleExpiresAt     Time
-	RevokedAt         *Time
+	ID                  string
+	ReferenceHash       Hash
+	AuthorizedEmail     string
+	CSRFTokenHash       Hash
+	CSRFTokenCiphertext Ciphertext
+	CreatedAt           Time
+	LastMutationAt      Time
+	AbsoluteExpiresAt   Time
+	IdleExpiresAt       Time
+	RevokedAt           *Time
 }
 
 // ValidateOAuthTransactionは保存前の期限・秘密値表現の不変条件を確認します。
@@ -57,7 +58,7 @@ func (record OAuthTransaction) Validate() error {
 
 // ValidateAdminSessionは保存前のsession期限・秘密値表現の不変条件を確認します。
 func (session AdminSession) Validate() error {
-	if session.ID == "" || len(session.ReferenceHash) == 0 || session.AuthorizedEmail == "" || len(session.CSRFTokenHash) == 0 || session.CreatedAt.IsZero() || !session.AbsoluteExpiresAt.Equal(session.CreatedAt.Add(SessionAbsoluteLifetime)) || !session.LastMutationAt.Equal(session.CreatedAt) || !session.IdleExpiresAt.Equal(session.CreatedAt.Add(SessionIdleLifetime)) {
+	if session.ID == "" || len(session.ReferenceHash) == 0 || session.AuthorizedEmail == "" || len(session.CSRFTokenHash) == 0 || len(session.CSRFTokenCiphertext) == 0 || session.CreatedAt.IsZero() || !session.AbsoluteExpiresAt.Equal(session.CreatedAt.Add(SessionAbsoluteLifetime)) || !session.LastMutationAt.Equal(session.CreatedAt) || !session.IdleExpiresAt.Equal(session.CreatedAt.Add(SessionIdleLifetime)) {
 		return errors.New("invalid admin session")
 	}
 

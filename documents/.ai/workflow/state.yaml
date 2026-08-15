@@ -9,9 +9,9 @@ features:
     design: completed
     design_review: completed
     implementation_readiness_review: completed
-    implementation_readiness_review_result: "2026-08-15: handler/usecase/repository/domainとcmdの責務・依存、設定とSecretの注入、Gin境界、構造検証、OAuth・DB・migration・session・CSRF・Frontend境界を独立監査しpass"
+    implementation_readiness_review_result: "2026-08-15: CSRF ciphertext/hash、002 migration、legacy session失効、HTTP副作用、設定・検証契約を独立監査しpass"
     human_design_review: approved
-    human_design_review_approval: "2026-08-15: 利用者がhandler/usecase/repository/domainへのBackend構造変更後に、実装対応を明示指示"
+    human_design_review_approval: "2026-08-15: 利用者がDEC-FEAT-004を含む更新後の詳細設計を明示承認"
     task_breakdown: completed
     implementation_handoff: ready
 implementation_ready_features:

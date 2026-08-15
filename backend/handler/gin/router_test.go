@@ -20,6 +20,21 @@ func (noOpOAuthService) Callback(context.Context, usecaseauth.CallbackInput) (us
 	return usecaseauth.CallbackOutput{}, nil
 }
 
+type noOpAdminSessionService struct{}
+
+func (noOpAdminSessionService) Bootstrap(context.Context, string) (usecaseauth.SessionBootstrapOutput, error) {
+	return usecaseauth.SessionBootstrapOutput{}, nil
+}
+func (noOpAdminSessionService) AuthorizeRead(context.Context, string) (usecaseauth.GuardDecision, error) {
+	return usecaseauth.GuardUnauthenticated, nil
+}
+func (noOpAdminSessionService) Logout(context.Context, usecaseauth.SessionInput) (usecaseauth.GuardDecision, error) {
+	return usecaseauth.GuardUnauthenticated, nil
+}
+func (noOpAdminSessionService) RunAuthorizedAdminStateChange(context.Context, usecaseauth.SessionInput, usecaseauth.AdminStateChangeOperation) (usecaseauth.GuardDecision, error) {
+	return usecaseauth.GuardUnauthenticated, nil
+}
+
 func TestNewRouter(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -41,7 +56,7 @@ func TestNewRouter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			response := httptest.NewRecorder()
-			NewRouter(noOpOAuthService{}, observability.NewDiscardLogger()).ServeHTTP(response, httptest.NewRequestWithContext(context.Background(), http.MethodGet, tt.path, nil))
+			NewRouter(noOpOAuthService{}, noOpAdminSessionService{}, observability.NewDiscardLogger()).ServeHTTP(response, httptest.NewRequestWithContext(context.Background(), http.MethodGet, tt.path, nil))
 			if response.Code != tt.want {
 				t.Errorf("status = %d, want %d", response.Code, tt.want)
 			}

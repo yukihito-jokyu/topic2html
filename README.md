@@ -4,6 +4,7 @@
 
 - Node.js 24.18.0 / npm 11（Node.js版は `frontend/.nvmrc`）
 - Go 1.26.5
+- golangci-lint 2.12.2
 - Task 3
 
 ## コマンド

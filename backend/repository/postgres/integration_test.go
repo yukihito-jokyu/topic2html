@@ -28,8 +28,23 @@ func TestAdminAuthSchemaIntegration(t *testing.T) {
 		t.Fatal("failing migration DDL succeeded")
 	}
 	assertMigrationRollback(t, ctx, failingPool)
-	if err := ApplyAdminAuthSchema(ctx, failingPool); err != nil {
-		t.Fatalf("migration could not be rerun after rollback: %v", err)
+	if err := applyAdminAuthSchema(ctx, newPGXPool(failingPool)); err != nil {
+		t.Fatalf("001 migration could not be rerun after rollback: %v", err)
+	}
+	legacyHash := integrationHash(99, 1)
+	legacyNow := time.Now().UTC()
+	if _, err := failingPool.Exec(ctx, `INSERT INTO admin_sessions (id, reference_hash, authorized_email, csrf_token_hash, created_at, last_mutation_at, absolute_expires_at, idle_expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, integrationID(99), legacyHash, "admin@example.test", integrationHash(99, 2), legacyNow, legacyNow, legacyNow.Add(auth.SessionAbsoluteLifetime), legacyNow.Add(auth.SessionIdleLifetime)); err != nil {
+		t.Fatal(err)
+	}
+	if err := ApplyMigrations(ctx, failingPool); err != nil {
+		t.Fatalf("002 migration could not be applied: %v", err)
+	}
+	var legacyRevoked *time.Time
+	if err := failingPool.QueryRow(ctx, `SELECT revoked_at FROM admin_sessions WHERE reference_hash = $1`, legacyHash).Scan(&legacyRevoked); err != nil || legacyRevoked == nil {
+		t.Fatalf("legacy session was not revoked: %v", err)
+	}
+	if err := ApplyMigrations(ctx, failingPool); err != nil {
+		t.Fatalf("002 migration could not be reapplied: %v", err)
 	}
 	if err := ApplyAdminAuthSchema(ctx, pool); err != nil {
 		t.Fatal(err)
@@ -39,6 +54,9 @@ func TestAdminAuthSchemaIntegration(t *testing.T) {
 	}
 	var version string
 	if err := pool.QueryRow(ctx, `SELECT version FROM schema_migrations WHERE version = $1`, AdminAuthSchemaMigration).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT version FROM schema_migrations WHERE version = $1`, AdminSessionCSRFCiphertextMigration).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
 	store := NewStore(pool)
@@ -111,7 +129,7 @@ func TestAdminAuthSchemaIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	changeTime := now.Add(10 * time.Minute)
-	if updated, err := store.RunAdminStateChange(ctx, session.ReferenceHash, changeTime, func(operationContext context.Context) error {
+	if updated, err := store.RunAuthorizedAdminStateChange(ctx, session.ReferenceHash, session.AuthorizedEmail, session.CSRFTokenHash, changeTime, func(operationContext context.Context) error {
 		transaction, ok := transactionFromContext(operationContext)
 		if !ok {
 			return errors.New("state change transaction is unavailable")
@@ -123,11 +141,19 @@ func TestAdminAuthSchemaIntegration(t *testing.T) {
 		t.Fatalf("admin state change: updated=%t err=%v", updated, err)
 	}
 	assertProbeCount(t, ctx, pool, "success", 1)
+	assertSessionIdleDeadline(t, ctx, pool, session.ReferenceHash, changeTime, changeTime.Add(auth.SessionIdleLifetime))
+	if updated, err := store.RunAuthorizedAdminStateChange(ctx, session.ReferenceHash, session.AuthorizedEmail, integrationHash(4, 8), changeTime.Add(time.Minute), func(operationContext context.Context) error {
+		return errors.New("must not run")
+	}); err != nil || updated {
+		t.Fatalf("csrf mismatch state change: updated=%t err=%v", updated, err)
+	}
+	assertProbeCount(t, ctx, pool, "csrf-mismatch", 0)
+	assertSessionIdleDeadline(t, ctx, pool, session.ReferenceHash, changeTime, changeTime.Add(auth.SessionIdleLifetime))
 	failedSession := integrationSession(now, 7)
 	if err := store.CreateAdminSession(ctx, failedSession); err != nil {
 		t.Fatal(err)
 	}
-	if updated, err := store.RunAdminStateChange(ctx, failedSession.ReferenceHash, changeTime, func(operationContext context.Context) error {
+	if updated, err := store.RunAuthorizedAdminStateChange(ctx, failedSession.ReferenceHash, failedSession.AuthorizedEmail, failedSession.CSRFTokenHash, changeTime, func(operationContext context.Context) error {
 		transaction, ok := transactionFromContext(operationContext)
 		if !ok {
 			return errors.New("state change transaction is unavailable")
@@ -196,6 +222,47 @@ func TestAdminAuthSchemaIntegration(t *testing.T) {
 		if count != 1 {
 			t.Fatalf("24-hour boundary record count = %d, want 1", count)
 		}
+	}
+}
+
+// TestAdminSessionCSRFCiphertextMigrationRollbackIntegrationは002のDDL・legacy失効・migration記録が同一transactionでrollbackされることを実PostgreSQLで検証します。
+func TestAdminSessionCSRFCiphertextMigrationRollbackIntegration(t *testing.T) {
+	if *integrationDatabaseURL == "" {
+		t.Skip("integration-database-url is not configured")
+	}
+	ctx := context.Background()
+	pool := newIntegrationPool(t, ctx)
+	if err := applyAdminAuthSchema(ctx, newPGXPool(pool)); err != nil {
+		t.Fatal(err)
+	}
+	legacyHash := integrationHash(100, 1)
+	legacyNow := time.Now().UTC()
+	if _, err := pool.Exec(ctx, `INSERT INTO admin_sessions (id, reference_hash, authorized_email, csrf_token_hash, created_at, last_mutation_at, absolute_expires_at, idle_expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, integrationID(100), legacyHash, "admin@example.test", integrationHash(100, 2), legacyNow, legacyNow, legacyNow.Add(auth.SessionAbsoluteLifetime), legacyNow.Add(auth.SessionIdleLifetime)); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyMigrationWithDDL(ctx, newPGXPool(pool), AdminSessionCSRFCiphertextMigration, adminSessionCSRFCiphertextDDL+"\nSELECT 1 / 0;\n"); err == nil {
+		t.Fatal("failing 002 migration succeeded")
+	}
+	var ciphertextColumnExists bool
+	if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'admin_sessions' AND column_name = 'csrf_token_ciphertext')`).Scan(&ciphertextColumnExists); err != nil {
+		t.Fatal(err)
+	}
+	if ciphertextColumnExists {
+		t.Fatal("rollback left csrf_token_ciphertext column")
+	}
+	var legacyRevoked *time.Time
+	if err := pool.QueryRow(ctx, `SELECT revoked_at FROM admin_sessions WHERE reference_hash = $1`, legacyHash).Scan(&legacyRevoked); err != nil {
+		t.Fatal(err)
+	}
+	if legacyRevoked != nil {
+		t.Fatal("rollback left legacy session revoked")
+	}
+	var migrationCount int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM schema_migrations WHERE version = $1`, AdminSessionCSRFCiphertextMigration).Scan(&migrationCount); err != nil {
+		t.Fatal(err)
+	}
+	if migrationCount != 0 {
+		t.Fatalf("rollback left 002 migration record count=%d", migrationCount)
 	}
 }
 
@@ -286,14 +353,15 @@ func integrationTransaction(createdAt time.Time, sequence int) auth.OAuthTransac
 
 func integrationSession(createdAt time.Time, sequence int) auth.AdminSession {
 	return auth.AdminSession{
-		ID:                integrationID(sequence),
-		ReferenceHash:     integrationHash(sequence, 5),
-		AuthorizedEmail:   "admin@example.test",
-		CSRFTokenHash:     integrationHash(sequence, 6),
-		CreatedAt:         createdAt,
-		LastMutationAt:    createdAt,
-		AbsoluteExpiresAt: createdAt.Add(auth.SessionAbsoluteLifetime),
-		IdleExpiresAt:     createdAt.Add(auth.SessionIdleLifetime),
+		ID:                  integrationID(sequence),
+		ReferenceHash:       integrationHash(sequence, 5),
+		AuthorizedEmail:     "admin@example.test",
+		CSRFTokenHash:       integrationHash(sequence, 6),
+		CSRFTokenCiphertext: auth.Ciphertext(integrationHash(sequence, 7)),
+		CreatedAt:           createdAt,
+		LastMutationAt:      createdAt,
+		AbsoluteExpiresAt:   createdAt.Add(auth.SessionAbsoluteLifetime),
+		IdleExpiresAt:       createdAt.Add(auth.SessionIdleLifetime),
 	}
 }
 

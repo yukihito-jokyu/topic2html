@@ -20,7 +20,7 @@ Backendの物理ディレクトリは、少なくとも`cmd`、`handler`、`usec
 | --- | --- | --- | --- | --- |
 | `oauth_start` | transaction期限・一回使用に必要な値規則 | `cmd`注入済み認可依存で入力を正規化し、既存transaction無効化、新規transaction発行 | form/OriginをHTTP契約どおりに読み、303/cookieへ変換 | `cmd`注入済みGoogle設定・秘密値、乱数・hash・暗号、PostgreSQL、Google Authorization URL生成 |
 | `oauth_callback` | transaction/session有効性、期限、資格状態 | `cmd`注入済み認可依存でtransaction消費、Google検証結果と許可メール照合、session作成 | query/cookieを受け、成功/失敗303とcookie削除を変換 | PostgreSQL、`cmd`注入済みGoogle Token/OIDC設定・Secret、乱数・hash・暗号、時刻 |
-| session bootstrap | 有効sessionの判定 | `cmd`注入済み認可依存でsession照会と匿名/認証済み結果の作成 | cookieからHTTP JSON/cookie削除へ変換 | PostgreSQL、`cmd`注入済み保護鍵、時刻、hash比較 |
+| session bootstrap | 有効sessionの判定、CSRF token復元規則 | `cmd`注入済み認可依存でsession照会とServer保護ciphertextの復号を行い、匿名/認証済み結果を作成 | cookieからHTTP JSON/cookie削除へ変換 | PostgreSQL、`cmd`注入済み保護鍵、時刻、hash比較 |
 | read/mutation guard | 認可済み資格・期限の規則 | `cmd`注入済み認可依存でsession/許可メール/CSRF/Originを検査、成功時の許可結果 | Gin middlewareまたはroute境界でHTTP入力を`usecase`へ渡す | PostgreSQL、`cmd`注入済み保護鍵、時刻、hash比較 |
 | logout | session失効と匿名logout例外の規則 | `cmd`注入済み認可依存でOrigin/CSRF条件の評価と失効 | POSTをHTTP結果/cookie削除へ変換 | PostgreSQL、`cmd`注入済み保護鍵、時刻、hash比較 |
 

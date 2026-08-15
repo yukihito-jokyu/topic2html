@@ -18,14 +18,15 @@ func TestProtectedRecordValidation(t *testing.T) {
 		ExpiresAt:              now.Add(OAuthTransactionLifetime),
 	}
 	validSession := AdminSession{
-		ID:                "id",
-		ReferenceHash:     Hash{1},
-		AuthorizedEmail:   "admin@example.test",
-		CSRFTokenHash:     Hash{2},
-		CreatedAt:         now,
-		LastMutationAt:    now,
-		AbsoluteExpiresAt: now.Add(SessionAbsoluteLifetime),
-		IdleExpiresAt:     now.Add(SessionIdleLifetime),
+		ID:                  "id",
+		ReferenceHash:       Hash{1},
+		AuthorizedEmail:     "admin@example.test",
+		CSRFTokenHash:       Hash{2},
+		CSRFTokenCiphertext: Ciphertext{3},
+		CreatedAt:           now,
+		LastMutationAt:      now,
+		AbsoluteExpiresAt:   now.Add(SessionAbsoluteLifetime),
+		IdleExpiresAt:       now.Add(SessionIdleLifetime),
 	}
 	for _, tt := range []struct {
 		name string

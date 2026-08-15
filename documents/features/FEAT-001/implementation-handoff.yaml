@@ -56,6 +56,8 @@ constraints:
   - Ginはhandlerだけに用い、Backendの依存は承認済みのcmd・handler・usecase・repository・domain境界に従う。
   - backend/は独立Go module・独立検証単位とし、frontend/は同一origin HTTP契約だけを利用する。
   - opaque cookie、Server側保護記録、同期CSRF token、trusted Origin照合、fail closedを守る。
+  - 新規管理sessionにはCSRF tokenの照合用hashとServer保護ciphertextを保存する。bootstrapはciphertextをServer内で復号し、hashを定数時間照合してからだけtokenを返す。復号・照合・保護記録障害では`503 authentication_unavailable`としてcookie、idle期限、業務状態を変更しない。
+  - "`002_admin_session_csrf_ciphertext`は、ciphertext列の追加、ciphertextを持たない未失効legacy sessionの失効、適用記録を同一transactionで実施する。legacy sessionのCSRF平文をbackfillせず、migration後は再ログインへ収束させる。"
   - 認証情報・Secret・許可メール・token・cookie値をBrowser、生成HTML、公開表示、ログ、fixtureへ出さない。
   - 生成HTML隔離originへ資格情報を渡さず、隔離originの結合検証はFEAT-005が所有する。
 approved_decisions:
@@ -65,28 +67,29 @@ approved_decisions:
   - DEC-FEAT-001
   - DEC-FEAT-002
   - DEC-FEAT-003
+  - DEC-FEAT-004
 interfaces_and_contracts:
   architecture_boundaries: design/architecture-boundaries.md
-  database_and_migration: design/database-schema.md
-  session_and_csrf: design/session-contract.md
+  database_and_migration: design/database-schema.md — `002_admin_session_csrf_ciphertext`はNULL可ciphertext列を追加し、ciphertextなし未失効legacy sessionを同一transactionで失効する。新規sessionではciphertext必須とし、migration失敗時はDDL・失効・version記録を全てrollbackする。
+  session_and_csrf: design/session-contract.md — callbackはCSRF hash/ciphertextを同時に保存し、bootstrapはServer内復号後のhashを定数時間照合してからtokenを返す。復号・照合失敗は503 fail closedである。
   http: design/http-contract.md
-  operations: design/operations/
+  operations: design/operations/ — oauth callback、session bootstrap、read/mutation guard、logoutのI/O、副作用、冪等性、DB accessおよびtransaction/rollbackは各operation資料とdatabase-schema.mdに定義済み。
   runtime_configuration: design/runtime-configuration.md
   screen_specification: design/screen-specification.md
   test_strategy: design/test-strategy.md
   user_operation: design/use-cases/admin-login-and-management.md
-  contract_completeness: complete — PostgreSQL DDL相当、migration、HTTP operation、画面仕様、構造境界、検証責務を上記資料に定義済み。
+  contract_completeness: complete — PostgreSQL DDL相当、`001`/`002` migration、CSRF ciphertext/hash、legacy session失効、HTTP operation、画面仕様、構造境界、検証責務を上記資料に定義済み。
 design_readiness_audit:
   feature_design: completed
   design_review: features/FEAT-001/design-review.md
   design_review_result: pass
   implementation_readiness_review: features/FEAT-001/implementation-readiness-review.md
   implementation_readiness_review_result: pass
-  user_approval: "2026-08-15: 利用者がhandler/usecase/repository/domainへのBackend構造変更後に、実装対応を明示指示"
+  user_approval: "2026-08-15: 利用者がDEC-FEAT-004を含む更新後の詳細設計を明示承認"
   contract_completeness: complete
-  required_diagrams: complete — design.mdに構造図とOAuth callbackのシーケンス図があり、状態遷移図が不要な理由も記録済み。
+  required_diagrams: complete — design.mdに構造図とOAuth callbackのシーケンス図があり、状態遷移図が不要な理由も記録済み。operation別のI/O、状態変更、DB access、transaction/rollbackはdesign/operations/とdatabase-schema.mdに定義済み。
   executable_foundation: complete — DEC-ARCH-003およびDEC-FEAT-003がGo/Gin、Node.js/React、PostgreSQL、依存管理、分離配置、共通検証を確定している。
-  outcome: 実装者が製品・業務・公開・セキュリティ判断を再設計せずに、cmd・handler・usecase・repository・domainの構造移行から着手できる。
+  outcome: 実装者が製品・業務・公開・セキュリティ判断を再設計せずに、CSRF ciphertext/hash、002 migration、legacy session失効、session・CSRF・管理アクセスガードを実装できる。
 out_of_scope:
   - 生成・検証・再試行・試行履歴の業務契約と画面（FEAT-002）
   - 版・公開の業務契約と画面（FEAT-003）

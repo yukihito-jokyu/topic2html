@@ -98,14 +98,15 @@ func testSession() auth.AdminSession {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	return auth.AdminSession{
-		ID:                "00000000-0000-0000-0000-000000000001",
-		ReferenceHash:     auth.Hash{1},
-		AuthorizedEmail:   "admin@example.test",
-		CSRFTokenHash:     auth.Hash{2},
-		CreatedAt:         now,
-		LastMutationAt:    now,
-		AbsoluteExpiresAt: now.Add(auth.SessionAbsoluteLifetime),
-		IdleExpiresAt:     now.Add(auth.SessionIdleLifetime),
+		ID:                  "00000000-0000-0000-0000-000000000001",
+		ReferenceHash:       auth.Hash{1},
+		AuthorizedEmail:     "admin@example.test",
+		CSRFTokenHash:       auth.Hash{2},
+		CSRFTokenCiphertext: auth.Ciphertext{3},
+		CreatedAt:           now,
+		LastMutationAt:      now,
+		AbsoluteExpiresAt:   now.Add(auth.SessionAbsoluteLifetime),
+		IdleExpiresAt:       now.Add(auth.SessionIdleLifetime),
 	}
 }
 
@@ -151,26 +152,25 @@ func TestStoreReadsAndUpdates(t *testing.T) {
 	if _, ok, err := testStore(&fakeTx{}).FindAdminSession(ctx, hash); err != nil || !ok {
 		t.Fatalf("find: %v %t", err, ok)
 	}
-	for _, call := range []func() (bool, error){func() (bool, error) { return testStore(&fakeTx{}).RevokeAdminSession(ctx, hash, now) }, func() (bool, error) {
-		return testStore(&fakeTx{}).RunAdminStateChange(ctx, hash, now, func(operationContext context.Context) error {
-			if _, ok := transactionFromContext(operationContext); !ok {
-				return errors.New("missing transaction")
-			}
-
-			return nil
-		})
-	}} {
+	for _, call := range []func() (bool, error){func() (bool, error) { return testStore(&fakeTx{}).RevokeAdminSession(ctx, hash, now) }} {
 		if ok, err := call(); err != nil || !ok {
 			t.Fatalf("update: %v %t", err, ok)
 		}
 	}
-	if _, err := testStore(&fakeTx{}).RunAdminStateChange(ctx, hash, now, nil); err == nil {
-		t.Fatal("nil admin state change operation succeeded")
+	if updated, err := testStore(&fakeTx{}).RunAuthorizedAdminStateChange(ctx, hash, "admin@example.test", hash, now, func(operationContext context.Context) error {
+		if _, ok := transactionFromContext(operationContext); !ok {
+			return errors.New("missing transaction")
+		}
+
+		return nil
+	}); err != nil || !updated {
+		t.Fatalf("authorized update: %v %t", err, updated)
 	}
-	if updated, err := testStore(&fakeTx{
-		tag: fakeTag(0),
-	}).RunAdminStateChange(ctx, hash, now, func(context.Context) error { return nil }); err != nil || updated {
-		t.Fatalf("missing session state change: updated=%t err=%v", updated, err)
+	if _, err := testStore(&fakeTx{}).RunAuthorizedAdminStateChange(ctx, hash, "admin@example.test", hash, now, nil); err == nil {
+		t.Fatal("nil authorized admin state change operation succeeded")
+	}
+	if updated, err := testStore(&fakeTx{tag: fakeTag(0)}).RunAuthorizedAdminStateChange(ctx, hash, "admin@example.test", hash, now, func(context.Context) error { return nil }); err != nil || updated {
+		t.Fatalf("missing authorized session state change: updated=%t err=%v", updated, err)
 	}
 }
 
@@ -291,30 +291,22 @@ func TestStoreFailures(t *testing.T) {
 			return e
 		},
 		func() error {
-			_, e := (&Store{
-				pool: fakePool{
-					err: boom,
-				},
-			}).RunAdminStateChange(ctx, hash, now, func(context.Context) error { return nil })
+			_, e := (&Store{pool: fakePool{err: boom}}).RunAuthorizedAdminStateChange(ctx, hash, "admin@example.test", hash, now, func(context.Context) error { return nil })
 
 			return e
 		},
 		func() error {
-			_, e := testStore(&fakeTx{
-				exec: []error{boom},
-			}).RunAdminStateChange(ctx, hash, now, func(context.Context) error { return nil })
+			_, e := testStore(&fakeTx{exec: []error{boom}}).RunAuthorizedAdminStateChange(ctx, hash, "admin@example.test", hash, now, func(context.Context) error { return nil })
 
 			return e
 		},
 		func() error {
-			_, e := testStore(&fakeTx{}).RunAdminStateChange(ctx, hash, now, func(context.Context) error { return boom })
+			_, e := testStore(&fakeTx{}).RunAuthorizedAdminStateChange(ctx, hash, "admin@example.test", hash, now, func(context.Context) error { return boom })
 
 			return e
 		},
 		func() error {
-			_, e := testStore(&fakeTx{
-				commit: boom,
-			}).RunAdminStateChange(ctx, hash, now, func(context.Context) error { return nil })
+			_, e := testStore(&fakeTx{commit: boom}).RunAuthorizedAdminStateChange(ctx, hash, "admin@example.test", hash, now, func(context.Context) error { return nil })
 
 			return e
 		},

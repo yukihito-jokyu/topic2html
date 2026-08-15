@@ -70,3 +70,33 @@ func TestApplyAdminAuthSchema(t *testing.T) {
 		})
 	}
 }
+
+func TestApplyMigrations(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		pool      fakePool
+		wantError bool
+	}{
+		{
+			name: "all migrations apply",
+			pool: fakePool{transaction: &fakeTx{rows: []error{pgx.ErrNoRows, pgx.ErrNoRows}}},
+		},
+		{
+			name: "second migration fails",
+			pool: fakePool{transaction: &fakeTx{
+				rows: []error{pgx.ErrNoRows, pgx.ErrNoRows},
+				exec: []error{nil, nil, nil, nil, errors.New("boom")},
+			}},
+			wantError: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := applyMigrations(context.Background(), tt.pool); (err != nil) != tt.wantError {
+				t.Fatalf("error=%v", err)
+			}
+		})
+	}
+	if err := applyAdminAuthSchemaWithDDL(context.Background(), fakePool{transaction: &fakeTx{rows: []error{pgx.ErrNoRows}}}, "CREATE TABLE example (id INT);"); err != nil {
+		t.Fatal(err)
+	}
+}
