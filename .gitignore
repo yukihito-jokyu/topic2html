@@ -1,2 +1,8 @@
 # mac
 .DS_Store
+node_modules/
+.cache/
+storybook-static/
+playwright-report/
+test-results/
+debug-storybook.log

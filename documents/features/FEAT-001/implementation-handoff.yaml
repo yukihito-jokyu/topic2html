@@ -13,39 +13,48 @@ business_rules:
   - id: BR-015
     obligation: 管理情報・秘密情報を公開・失敗表示へ出さない。
 logical_areas:
-  - 設定・外部OAuth境界
+  - Backend／Frontend分離と実行基盤
+  - cmd・handler・usecase・repository・domainの構造境界
+  - 設定・Google OAuth/OIDC外部境界
   - 保護記録・migration
-  - OAuth/OIDC本人確認
+  - OAuth/OIDC本人確認と管理session発行
   - session・CSRF・管理アクセスガード
   - 管理認証画面
   - 自動検証
 tasks:
   - id: TASK-001-01
-    purpose: 認証設定と起動時検証を整備する。
+    purpose: Backend／Frontend分離、Backend独立Go module、cmd・handler・usecase・repository・domainの明示配置、Ginのhandler限定、依存規則への構造移行を成立させる。
     depends_on: []
   - id: TASK-001-02
-    purpose: 管理認証の保護記録とmigrationを実装する。
+    purpose: 認証設定とGoogle外部境界をApplicationから隔離して提供する。
     depends_on: [TASK-001-01]
   - id: TASK-001-03
-    purpose: Google OAuth/OIDCによる管理session発行を実装する。
-    depends_on: [TASK-001-01, TASK-001-02]
+    purpose: 管理認証の保護記録とmigrationをApplication portおよびPostgreSQL外部adapterとして実装する。
+    depends_on: [TASK-001-01]
   - id: TASK-001-04
-    purpose: 管理session・CSRF・共通アクセスガードを実装する。
-    depends_on: [TASK-001-01, TASK-001-02]
+    purpose: Google OAuth/OIDCの本人確認と管理session発行をApplication use caseとHTTP契約へ実装する。
+    depends_on: [TASK-001-02, TASK-001-03]
   - id: TASK-001-05
-    purpose: 管理認証画面の状態と操作を実装する。
-    depends_on: [TASK-001-03, TASK-001-04]
+    purpose: 管理session・CSRF・共通アクセスガードをApplication規則とHTTP契約へ実装する。
+    depends_on: [TASK-001-02, TASK-001-03]
   - id: TASK-001-06
-    purpose: 認証契約の検証を自動化する。
-    depends_on: [TASK-001-01, TASK-001-02, TASK-001-03, TASK-001-04, TASK-001-05]
+    purpose: 同一origin HTTP契約だけを利用する管理認証画面の状態と操作を実装する。
+    depends_on: [TASK-001-01, TASK-001-04, TASK-001-05]
+  - id: TASK-001-07
+    purpose: 認証契約、Backend／Frontend分離、Clean Architecture境界を自動検証する。
+    depends_on: [TASK-001-01, TASK-001-02, TASK-001-03, TASK-001-04, TASK-001-05, TASK-001-06]
 acceptance_criteria:
   source: tasks.mdの各Task受け入れ基準およびdesign/test-strategy.md
   feature_complete:
+    - BackendとFrontendが承認済み責務に分離され、Backendは独立Go module・検証単位としてcmd、handler、usecase、repository、domainを明示配置する。
+    - Ginはhandlerに限定され、domainは外部層へ、usecaseはGin、PostgreSQL、Google、環境設定、repository実装へ、handlerはrepositoryへ、repositoryはhandlerへ直接依存しない。
     - 許可メールの検証済みGoogle利用者だけが管理操作を行える。
     - 未認証・不許可・失敗・取消・期限切れ・再使用では管理操作を行えない。
     - 管理認証の画面、API、DB、Cookie、CSRF、外部OAuth、検証が設計契約に一致する。
 constraints:
   - Go Server、React管理画面、PostgreSQL、Google OAuth/OIDCのServer側検証を使用する。
+  - Ginはhandlerだけに用い、Backendの依存は承認済みのcmd・handler・usecase・repository・domain境界に従う。
+  - backend/は独立Go module・独立検証単位とし、frontend/は同一origin HTTP契約だけを利用する。
   - opaque cookie、Server側保護記録、同期CSRF token、trusted Origin照合、fail closedを守る。
   - 認証情報・Secret・許可メール・token・cookie値をBrowser、生成HTML、公開表示、ログ、fixtureへ出さない。
   - 生成HTML隔離originへ資格情報を渡さず、隔離originの結合検証はFEAT-005が所有する。
@@ -55,7 +64,9 @@ approved_decisions:
   - DEC-ARCH-003
   - DEC-FEAT-001
   - DEC-FEAT-002
+  - DEC-FEAT-003
 interfaces_and_contracts:
+  architecture_boundaries: design/architecture-boundaries.md
   database_and_migration: design/database-schema.md
   session_and_csrf: design/session-contract.md
   http: design/http-contract.md
@@ -64,17 +75,21 @@ interfaces_and_contracts:
   screen_specification: design/screen-specification.md
   test_strategy: design/test-strategy.md
   user_operation: design/use-cases/admin-login-and-management.md
+  contract_completeness: complete — PostgreSQL DDL相当、migration、HTTP operation、画面仕様、構造境界、検証責務を上記資料に定義済み。
 design_readiness_audit:
   feature_design: completed
   design_review: features/FEAT-001/design-review.md
   design_review_result: pass
   implementation_readiness_review: features/FEAT-001/implementation-readiness-review.md
   implementation_readiness_review_result: pass
-  user_approval: "2026-08-15: 更新後の詳細設計を利用者が承認"
-  outcome: 実装者が製品・業務・公開・セキュリティ判断を再設計せずに着手できる。
+  user_approval: "2026-08-15: 利用者がhandler/usecase/repository/domainへのBackend構造変更後に、実装対応を明示指示"
+  contract_completeness: complete
+  required_diagrams: complete — design.mdに構造図とOAuth callbackのシーケンス図があり、状態遷移図が不要な理由も記録済み。
+  executable_foundation: complete — DEC-ARCH-003およびDEC-FEAT-003がGo/Gin、Node.js/React、PostgreSQL、依存管理、分離配置、共通検証を確定している。
+  outcome: 実装者が製品・業務・公開・セキュリティ判断を再設計せずに、cmd・handler・usecase・repository・domainの構造移行から着手できる。
 out_of_scope:
   - 生成・検証・再試行・試行履歴の業務契約と画面（FEAT-002）
   - 版・公開の業務契約と画面（FEAT-003）
   - タグ・掲載場所の業務契約と画面（FEAT-004）
   - 生成HTML隔離表示と隔離originの結合検証（FEAT-005）
-  - file path、symbol、framework API、局所的なコード構造
+  - 承認済みの配置責務を満たす内部file path、symbol、framework API、局所的なコード構造

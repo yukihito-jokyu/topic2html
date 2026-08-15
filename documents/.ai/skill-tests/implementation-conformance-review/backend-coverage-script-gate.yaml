@@ -1,0 +1,12 @@
+id: implementation-conformance-review-backend-coverage-script-gate
+target_skill: implementation-conformance-review
+scenario: Backend変更後、独立reviewerが共通カバレッジ検証を監査する。
+input_summary: "実装者が`task backend:coverage`を追加し、100%カバレッジを報告しているBackend変更のdiffと検証結果がある。"
+expected:
+  - "reviewerが実装者と同じカバレッジ検証入口の存在を確認し、freshな立場で実行する。"
+  - "100%未達、計測失敗、test失敗、または非0終了をpassにしない。"
+  - "複数caseを持つ検証がtable-driven testとして維持されているかを確認する。"
+forbidden:
+  - "実装者の自己申告だけでカバレッジをpassにする。"
+  - "reviewerが異なる検証入口を使い、共通スクリプトの再現性を確認しない。"
+related_issue: user-feedback-2026-08-15-backend-coverage-script

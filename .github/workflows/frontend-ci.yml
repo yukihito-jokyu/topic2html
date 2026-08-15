@@ -1,0 +1,59 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Node.js を設定
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 依存を同期
+        run: npm ci
+
+      - name: Playwright Chromium を準備
+        run: npx playwright install --with-deps chromium
+
+      - name: Biome format を検証
+        run: npm run format:check
+
+      - name: Biome lint を実行
+        run: npm run lint
+
+      - name: TypeScript を検証
+        run: npm run build
+
+      - name: Tailwind CSS を検証
+        run: npm run css:check
+
+      - name: Storybook をビルド
+        run: npm run storybook:build
+
+      - name: Playwright E2E を実行
+        run: npm run test:e2e
+
+      - name: Vitest を実行
+        run: npm test

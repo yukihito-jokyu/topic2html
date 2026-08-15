@@ -9,7 +9,7 @@
 method、URI、form入力、status、cookie属性は[HTTP契約](../http-contract.md)に従う。
 
 - 入力: 同一originのBrowser form POST。復帰先は現在`/admin`だけを許可し、省略時も`/admin`とする。外部URL・protocol-relative URL・認証callback自身を受け付けない。
-- 正常出力: Google Authorization Endpointへの`303`リダイレクト。queryにはこのtransaction専用の`state`、`nonce`、PKCE code challenge、事前設定済みclient識別子、固定redirect URI、必要最小限のOIDC scopeだけを含める。`Cache-Control: no-store`を必須とする。
+- 正常出力: Google Authorization Endpointへの`303`リダイレクト。Authorization Requestのqueryは`response_type=code`、このtransaction専用の`state`、`nonce`、S256のPKCE `code_challenge`と`code_challenge_method=S256`、事前設定済みclient識別子、固定redirect URI、固定OIDC scope `openid email`を含める。`profile`その他のscopeは要求しない。`Cache-Control: no-store`を必須とする。
 - 失敗出力: Googleへリダイレクトせず、transaction cookieを変更しないまま固定失敗案内へ`303 /admin/login?reason=failed`する。内部理由、許可メール、client secret、transaction値は返さない。`Cache-Control: no-store`を必須とする。
 
 ## 状態変更

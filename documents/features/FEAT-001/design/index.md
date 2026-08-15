@@ -4,6 +4,7 @@
 
 | 資料 | 内容 |
 | --- | --- |
+| [Clean Architecture境界](architecture-boundaries.md) | `backend/`と`frontend/`の責務、`cmd`/`handler`/`usecase`/`repository`/`domain`の依存方向、移行・構造検証。 |
 | [共通セッション契約](session-contract.md) | OAuth transaction、管理session、cookie、CSRF、共通の失敗・秘密情報保護。 |
 | [PostgreSQL schema・migration](database-schema.md) | 保護記録のDDL相当契約、migration、DB access map。 |
 | [HTTP契約](http-contract.md) | operation別method、URI、入力、status、JSON、header、cookie。 |

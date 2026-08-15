@@ -1,0 +1,51 @@
+version: "3"
+
+tasks:
+  frontend:install:
+    dir: frontend
+    cmds:
+      - npm ci
+
+  frontend:verify:
+    dir: frontend
+    cmds:
+      - npm run format:check
+      - npm run lint
+      - npm run build
+      - npm run css:check
+      - npm run storybook:build
+      - npm run test:e2e
+      - npm test
+
+  frontend:storybook:
+    dir: frontend
+    cmds:
+      - npm run storybook
+
+  backend:verify:
+    deps: [backend:coverage]
+    env:
+      GOCACHE: "{{.TASKFILE_DIR}}/.cache/topic2html-gocache"
+      GOLANGCI_LINT_CACHE: "{{.TASKFILE_DIR}}/.cache/topic2html-golangci-lint"
+    cmds:
+      - cd backend && go mod download
+      - cd backend && go mod verify
+      - cd backend && test -z "$(gofmt -l $(find . -name '*.go' -not -path './vendor/*'))"
+      - cd backend && golangci-lint run ./...
+      - cd backend && go test ./...
+      - cd backend && go build -o /tmp/topic2html-server ./cmd/server
+
+  backend:coverage:
+    env:
+      GOCACHE: "{{.TASKFILE_DIR}}/.cache/topic2html-gocache"
+      GOLANGCI_LINT_CACHE: "{{.TASKFILE_DIR}}/.cache/topic2html-golangci-lint"
+    cmds:
+      - cd backend && bash ../.agents/skills/impl-project-verification/scripts/check-backend-coverage.sh
+
+  verify:
+    deps: [frontend:verify, backend:verify]
+
+  run:
+    dir: backend
+    cmds:
+      - go run ./cmd/server

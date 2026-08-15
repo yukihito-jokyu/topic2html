@@ -1,0 +1,27 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.5.8/schema.json",
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
+	},
+	"linter": {
+		"rules": {
+			"a11y": {
+				"useSemanticElements": "off"
+			},
+			"suspicious": {
+				"noUnknownAtRules": "off"
+			}
+		}
+	},
+	"files": {
+		"ignoreUnknown": false,
+		"includes": [
+			"**",
+			"!storybook-static",
+			"!playwright-report",
+			"!test-results"
+		]
+	}
+}
