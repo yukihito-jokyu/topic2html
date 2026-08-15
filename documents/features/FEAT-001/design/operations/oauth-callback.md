@@ -20,7 +20,7 @@ method、URI、query、redirect、cookie属性は[HTTP契約](../http-contract.m
 4. `code`を用いるToken交換では、保存済みPKCE verifierと固定redirect URIだけを使用する。
 5. DEC-ARCH-003で承認済みのID Token検証を全て成功させる。任意の検証失敗は認可失敗とする。
 6. `email_verified=true`のメールを、Server限定の現行許可メール設定と完全一致で照合する。不一致ならsessionを作成しない。
-7. session参照値とCSRF tokenを生成し、各ハッシュ、認可済みメール、発行時刻、8時間の絶対期限、30分のアイドル期限を持つsessionを保存する。保存成功後だけsession cookieを設定する。
+7. session参照値とCSRF tokenを生成し、照合用hash、Server保護鍵によるciphertext、認可済みメール、発行時刻、8時間の絶対期限、30分のアイドル期限を持つsessionを保存する。保存成功後だけsession cookieを設定する。CSRF tokenの平文は保存・redirect返却しない。
 8. 成否にかかわらずtransaction cookieを削除する。OAuth transactionは再利用しない。
 
 ## transaction・cleanup
@@ -44,7 +44,7 @@ sequenceDiagram
     G-->>S: ID Token
     S->>S: ID Tokenと許可メールを検証
     alt 全検証と許可メール照合に成功
-      S->>M: sessionとCSRF tokenのハッシュを保存
+      S->>M: sessionとCSRF hash・ciphertextを保存
       M-->>S: 保存成功
       S-->>B: session cookieと管理画面へのリダイレクト
     else Token検証・メール照合・保存に失敗

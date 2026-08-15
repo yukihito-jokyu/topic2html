@@ -10,7 +10,7 @@
 | OAuth callback URI | trusted app originと固定path`/auth/google/callback`から構成し、Google Console登録値と完全一致。 | 同上。 |
 | Google Client ID / Secret | 環境専用OAuth Clientの値。 | SecretはServer実行環境だけへ注入。Client IDはOAuth Authorization Endpointの`Location` queryに必要な公開識別子としてだけ現れ、JSON応答・ログ・fixtureへは出さない。 |
 | 許可メール | 検証済みメールと完全一致で比較する単一値。 | Server限定。 |
-| DB接続情報・保護鍵 | PostgreSQL接続とPKCE verifier暗号化に必要な値。 | Server限定。鍵は環境ごとに分離する。 |
+| DB接続情報・保護鍵 | PostgreSQL接続とPKCE verifierおよびCSRF tokenの暗号化に必要な値。 | Server限定。鍵は環境ごとに分離する。 |
 
 起動時に全設定の存在・形式、origin/callbackの整合、Secretと保護鍵の空値でないことを検証する。いずれかが不正なら管理認証endpointを提供せず起動を失敗させる。本番の具体値とGoogle Console登録はリリース前提条件であり、配置運用責任者が変更を同期する。
 

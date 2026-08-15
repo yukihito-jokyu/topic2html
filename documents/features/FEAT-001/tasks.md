@@ -54,8 +54,9 @@
 **受け入れ基準:**
 
 - schema、constraint、index、migrationの初回適用、再適用防止、失敗rollback、中断後の再実行が[DB設計](design/database-schema.md)に一致する。
+- `002_admin_session_csrf_ciphertext`は`001_admin_auth_schema`を変更せず、ciphertext列の追加、ciphertextを持たない未失効legacy sessionの失効、適用記録を同一transactionで完了させる。既存sessionのCSRF平文をbackfillせず、migration後は再ログインで新sessionを発行する。
 - OAuth transaction、管理session、migration metadataを扱う`usecase` portは、SQL、pool、transaction型を`usecase`/`domain`へ露出しない。
-- DBへcookie値、OAuth `state`、CSRF token、PKCE verifierの平文を保存しない。
+- DBへcookie値、OAuth `state`、CSRF token、PKCE verifierの平文を保存しない。新規管理sessionはCSRF tokenの照合用hashとServer保護ciphertextをともに保存し、ciphertextがNULLのlegacy recordを認可・bootstrapに使わない。
 - OAuth transactionは10分・一回使用・置換時無効化、sessionは絶対8時間・idle30分・失効状態を保持し、競合するcallbackでも一度だけ消費される。
 - 期限後24時間を超える対象だけを保守削除し、保守削除の失敗を認証許可の理由にしない。
 
@@ -86,7 +87,7 @@
 **受け入れ基準:**
 
 - session cookieとtransaction cookieの名称、`Secure`、`HttpOnly`、`SameSite`、`Path`、`Domain`、期限、削除属性が[session契約](design/session-contract.md)に一致する。
-- session初期化は有効sessionだけにCSRF tokenを返し、無効時は匿名状態へ、保護記録障害時は`503`へ安全に収束する。
+- session初期化は有効sessionのServer保護ciphertextを復号し、復号値hashと保存hashを定数時間比較してからだけCSRF tokenを返す。無効時は匿名状態へ、読取り・復号・照合障害時はcookie、idle期限、業務状態を変えず`503`へ安全に収束する。
 - 管理読取りは有効sessionを必須とし、無効時に業務データを返さない。管理状態変更は有効session、trusted Origin、同期CSRF tokenを必須にし、成功時だけidle期限を更新する。
 - logoutは有効sessionでは認可・CSRF後に失効し、trusted Originからの匿名・期限切れ・失効sessionでは業務状態を変更せずcookie削除と匿名状態へ冪等に収束する。Origin不正・CSRF不正・保護記録障害時の副作用は契約どおりとする。
 - 公開HTMLの匿名閲覧へ管理認証を要求せず、資格情報を隔離originへ渡さない。
@@ -120,6 +121,7 @@
 - Backendが独立Go moduleとして検証でき、`domain`の外部技術非依存、`usecase`のport限定依存、`repository`のport実装と外部I/O隔離、Gin `handler`の契約変換、`cmd`限定の設定読取り・composition、FrontendのHTTP契約限定依存を構造検証で確認する。
 - port doubleによるunitで、許可・不許可・未検証・取消・期限切れ・transaction再使用・同時callback、Origin/CSRF、session・logoutの主要な正常・異常系を検証する。
 - 実PostgreSQLでmigrationの適用・再適用・rollback、制約・期限・失効・保守削除、保護記録障害時の不変性を検証する。
+- `002_admin_session_csrf_ciphertext`の適用・再適用・rollback、ciphertextなしlegacy sessionの失効、新規sessionのCSRF hash/ciphertext保存、ciphertext復号失敗・hash不一致時の`503`と副作用不変を検証する。
 - Gin HTTP adapter経由で、HTTPのURI・method・form・303・JSON・status・header・cookie・`no-store`、Origin/CSRF・logout例外を契約どおり検証する。
 - TLSを持つloopback trusted app originとGoogle test doubleによるE2Eで、認証画面の遷移、管理読取り拒否、cross-origin拒否、logout分岐、秘密値非露出、`__Host-`/`Secure` cookieを確認する。
 - キーボード操作、状態通知、狭い画面幅での主操作を確認する。

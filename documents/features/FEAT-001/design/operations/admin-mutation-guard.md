@@ -18,7 +18,7 @@
 2. session cookieがあり、対応するsessionが存在し、失効しておらず、アイドル期限・絶対期限内である。
 3. sessionの認可済みメールが、現行のServer限定許可メール設定と完全一致する。
 4. `Origin` headerが信頼済みアプリoriginと完全一致する。`Origin`が欠落・複数・不正なら拒否する。`Referer`は補助ログには使えても、CSRF判定の代替にしてはならない。
-5. 管理画面が専用headerで送るCSRF tokenが存在し、sessionに記録したハッシュと一致する。
+5. 管理画面が`admin_session_bootstrap`で受け取ったCSRF tokenを専用headerで送り、sessionに記録したhashと一致する。
 
 - 成功出力: 後続の状態変更操作へ通過する。全検査を通過した状態変更要求だけ、sessionのアイドル期限を延長できる。
 - session不正: `401`を返し、業務状態を変更しない。必要に応じてsession cookieを削除する。ただし`admin_logout`は、信頼済みoriginの検査に成功し、sessionが匿名・期限切れ・失効済みと判明した場合に限り、この応答を使わず、cookie削除と`authenticated: false`を返す。

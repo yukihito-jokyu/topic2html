@@ -2,7 +2,7 @@
 
 ## Migration
 
-Migration runnerだけが適用する。migration versionは昇順で適用し、`001_admin_auth_schema`は先行migrationを持たない。runnerは各migration transactionで、以下のmetadata tableを作成または参照する。
+Migration runnerだけが適用する。migration versionは昇順で適用し、`001_admin_auth_schema`は先行migrationを持たない。`002_admin_session_csrf_ciphertext`は`001_admin_auth_schema`の適用後だけに適用する。runnerは各migration transactionで、以下のmetadata tableを作成または参照する。
 
 ```sql
 -- migration適用記録を保持する。migration runnerだけが読書きする。
@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 );
 ```
 
-`schema_migrations.version`はmigration識別子（このFeatureでは`001_admin_auth_schema`）であり、同じversionの再適用を防ぐ。一つのmigrationの適用順は次のとおりとする。
+`schema_migrations.version`はmigration識別子（このFeatureでは`001_admin_auth_schema`と`002_admin_session_csrf_ciphertext`）であり、同じversionの再適用を防ぐ。一つのmigrationの適用順は次のとおりとする。
 
 1. transactionを開始する。
 2. 上記DDLでmetadata tableを作成または参照し、対象versionの適用記録を確認する。記録済みならmigration DDLを実行せずcommitする。
@@ -26,6 +26,8 @@ VALUES ('001_admin_auth_schema', CURRENT_TIMESTAMP);
 ```
 
 失敗時はmetadata tableの初回作成、対象DDL、適用記録を含めて全てrollbackし、適用記録を残さない。中断後は未記録versionを最初から再実行する。`001_admin_auth_schema`はこの順でmetadata table、以下の二表、制約、index、適用記録を一つのDB transactionで作成する。
+
+`002_admin_session_csrf_ciphertext`は、`admin_sessions`へNULL可の`csrf_token_ciphertext BYTEA`を追加し、同一transaction内でciphertextがない未失効sessionを失効する。既存sessionはCSRF平文を保持しないためciphertextを安全にbackfillできず、再ログインで新sessionを発行する必要がある。migration後に作成するsessionではciphertextを必須とし、ciphertextがNULLのsessionは認可・bootstrapに使わない。アクティブsessionを失効する運用影響は[DEC-FEAT-004](../decisions/DEC-FEAT-004.md)の承認を要する。
 
 期限切れ・無効化済み行の削除は認証と別の保守操作とし、期限後24時間を過ぎたOAuth transaction、失効または絶対期限後24時間を過ぎたsessionだけを対象にする。削除失敗は認証を許可する理由にしない。
 
@@ -51,7 +53,8 @@ VALUES ('001_admin_auth_schema', CURRENT_TIMESTAMP);
 | `id` | UUID, NOT NULL | primary key。Server内部識別子。 |
 | `reference_hash` | BYTEA, NOT NULL | session cookie参照値のSHA-256。UNIQUE。 |
 | `authorized_email` | TEXT, NOT NULL | OIDC検証済みメール。Server限定。 |
-| `csrf_token_hash` | BYTEA, NOT NULL | 同期CSRF tokenのSHA-256。 |
+| `csrf_token_hash` | BYTEA, NOT NULL | 同期CSRF tokenのSHA-256。状態変更時にheader値を照合する。 |
+| `csrf_token_ciphertext` | BYTEA, NULL | 同じCSRF tokenをServer保護鍵で暗号化した値。`002`より前の失効済みlegacy sessionではNULLを許容するが、新規sessionではNOT NULL。bootstrapでServer内だけで復号し、平文を初期化応答へ渡す。 |
 | `created_at` / `last_mutation_at` | TIMESTAMPTZ, NOT NULL | 発行時刻／認可・CSRF成功状態変更時刻。 |
 | `absolute_expires_at` / `idle_expires_at` | TIMESTAMPTZ, NOT NULL | 発行から8時間／最終状態変更から30分。 |
 | `revoked_at` | TIMESTAMPTZ, NULL | logout等の失効時刻。 |
@@ -63,7 +66,7 @@ VALUES ('001_admin_auth_schema', CURRENT_TIMESTAMP);
 | operation | transaction / access |
 | --- | --- |
 | `oauth_start` | 旧未使用行を無効化し、新規transactionをINSERTする一つのtransaction。 |
-| `oauth_callback` | 条件付き`consumed_at`更新で一回使用を確保する短いtransaction。Google交換はその外で行い、成功時だけsessionを別transactionでINSERTする。 |
-| `admin_session_bootstrap` | session参照。無効確定時の失効更新だけ短いtransaction。 |
+| `oauth_callback` | 条件付き`consumed_at`更新で一回使用を確保する短いtransaction。Google交換はその外で行い、成功時だけCSRF hash/ciphertextを含むsessionを別transactionでINSERTする。 |
+| `admin_session_bootstrap` | session参照とCSRF ciphertextの読取り、復号値hashの照合。無効確定時の失効更新だけ短いtransaction。 |
 | 管理状態変更ガード | session参照と、成功時のidle期限更新を後続業務更新と同じtransactionに含める。 |
 | `admin_logout` | 有効sessionだけ`revoked_at`を更新する短いtransaction。 |
