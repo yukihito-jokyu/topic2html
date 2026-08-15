@@ -195,7 +195,7 @@ func TestOAuthStartHTTPContract(t *testing.T) {
 				})
 			}
 			response := httptest.NewRecorder()
-			NewRouter(tt.service, observability.NewDiscardLogger()).ServeHTTP(response, request)
+			NewRouter(tt.service, noOpAdminSessionService{}, observability.NewDiscardLogger()).ServeHTTP(response, request)
 			if response.Code != tt.wantStatus || response.Header().Get("Location") != tt.wantPath {
 				t.Fatalf("status/location = %d/%q, want %d/%q", response.Code, response.Header().Get("Location"), tt.wantStatus, tt.wantPath)
 			}
@@ -309,7 +309,7 @@ func TestOAuthCallbackHTTPContract(t *testing.T) {
 				SameSite: http.SameSiteLaxMode,
 			})
 			response := httptest.NewRecorder()
-			NewRouter(tt.service, observability.NewDiscardLogger()).ServeHTTP(response, request)
+			NewRouter(tt.service, noOpAdminSessionService{}, observability.NewDiscardLogger()).ServeHTTP(response, request)
 			if response.Code != tt.wantStatus || response.Header().Get("Location") != tt.wantPath {
 				t.Fatalf("status/location = %d/%q, want %d/%q", response.Code, response.Header().Get("Location"), tt.wantStatus, tt.wantPath)
 			}
@@ -339,7 +339,7 @@ func TestRouterHelpers(t *testing.T) {
 	if panicResponse.Code != http.StatusInternalServerError {
 		t.Fatalf("panic status = %d", panicResponse.Code)
 	}
-	if NewRouter(noOpOAuthService{}, observability.NewDiscardLogger()) == nil {
+	if NewRouter(noOpOAuthService{}, noOpAdminSessionService{}, observability.NewDiscardLogger()) == nil {
 		t.Fatal("router is nil")
 	}
 	formRequest := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader("return_path=%2Fadmin"))

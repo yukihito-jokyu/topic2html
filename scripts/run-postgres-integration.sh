@@ -33,4 +33,5 @@ if [[ -z "$database_url" ]]; then
 	database_url="postgres://topic2html:topic2html@127.0.0.1:${port}/topic2html?sslmode=disable"
 fi
 
-go test -count=1 ./repository/postgres -run '^TestAdminAuthSchemaIntegration$' -args "-integration-database-url=$database_url"
+go test -count=1 ./repository/postgres -run '^(TestAdminAuthSchemaIntegration|TestAdminSessionCSRFCiphertextMigrationRollbackIntegration)$' -args "-integration-database-url=$database_url"
+go test -count=1 ./integration -run '^TestAdminSessionHTTPPostgresIntegration$' -args "-integration-database-url=$database_url"

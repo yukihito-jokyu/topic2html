@@ -89,7 +89,7 @@ func runWithDependencies(lookup LookupEnv, serve func(*http.Server) error, depen
 	}
 	server := &http.Server{
 		Addr:              "127.0.0.1:8080",
-		Handler:           ginadapter.NewRouter(service, logger),
+		Handler:           ginadapter.NewRouter(service, service, logger),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	if err := serve(server); err != nil && !errors.Is(err, http.ErrServerClosed) {
