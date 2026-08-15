@@ -12,7 +12,7 @@ covered_statements=0
 
 while IFS= read -r package; do
 	profile="$temporary_directory/$(printf '%s' "$package" | tr '/' '_').out"
-	go test -coverpkg="$package" -coverprofile="$profile" "$package"
+	go test -count=1 -coverpkg="$package" -coverprofile="$profile" "$package"
 	tail -n +2 "$profile" >>"$merged_profile"
 
 	coverage="$(awk '
