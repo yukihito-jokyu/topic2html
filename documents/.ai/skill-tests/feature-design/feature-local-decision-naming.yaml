@@ -1,0 +1,13 @@
+id: feature-design-feature-local-decision-naming
+target_skill: feature-design
+scenario: Featureの認可セッション方式について、L3の選択肢と承認待ちの設計を作成する。
+input_summary: Feature固有のセキュリティ契約を、実装Task作成前に利用者へ承認依頼する。
+expected:
+  - 承認待ちの判断を`features/{feature_id}/decisions/DEC-FEAT-###.md`へ記録する。
+  - Decisionに状態、選択肢、推奨、承認後の影響を含める。
+  - operation別I/O、状態変更、図、検証設計は`design/`配下の補助資料へ分離する。
+forbidden:
+  - L3/L4のDecisionを`features/{feature_id}/design/`配下の任意名の補助資料として作成する。
+  - Feature固有Decisionの命名規約を省略する。
+  - Decision本文に詳細設計を詰め込む。
+related_issue: user-feedback-2026-08-14-feature-decision-filename

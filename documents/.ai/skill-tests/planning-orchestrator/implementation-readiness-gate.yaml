@@ -1,0 +1,11 @@
+id: planning-orchestrator-implementation-readiness-gate
+target_skill: planning-orchestrator
+scenario: 認証、PostgreSQL永続化、HTTP操作、外部OAuthを含むFeatureのdesign-reviewがpassになった。
+input_summary: 詳細設計には方式選定と要件整合レビューがあるが、DDL、wire contract、設定運用契約、operation別transaction設計の完全性は未確認である。
+expected:
+  - 利用者レビューの前に、設計者・design-review実行者とは異なるfresh subagentへimplementation-readiness-reviewを委譲する。
+  - readiness reviewがpass以外なら、Task Breakdownおよび利用者の最終設計承認へ進めない。
+forbidden:
+  - design-reviewのpassだけで詳細設計を実装可能と扱う。
+  - Task Breakdownの中で初めて実装契約の重大な不足を発見する通常フローにする。
+related_issue: user-feedback-2026-08-15-implementation-readiness-phase

@@ -1,0 +1,13 @@
+id: implementation-readiness-review-contract-completeness-gate
+target_skill: implementation-readiness-review
+scenario: PostgreSQL、HTTP API、OAuth callbackを採用したFeatureについて、design-reviewはpassである。
+input_summary: 設計には認可方式と要件整合があるが、DDL/migration、operation別wire contract、transaction/rollback、origin/redirect URIの環境別運用責任が未確定である。
+expected:
+  - 実装者が仕様を再設計せずに着手できない欠落として記録する。
+  - 判定をpass以外とし、Feature Design、Initial Design、または人間Decisionへの適切な差し戻し先を示す。
+  - L3/L4の人間Decisionが必要な場合、Decision Ownerであるfeature-designが`features/{feature_id}/decisions/DEC-FEAT-###.md`へ承認待ちDecisionを記録してから利用者へ提示するよう指示する。
+forbidden:
+  - Task Breakdownで補う前提でpassにする。
+  - file pathやframework APIの未決定を不合格理由にする。
+  - reviewer自身がFeature Decisionを作成する、またはDecision記録なしで利用者へ判断を求める。
+related_issue: user-feedback-2026-08-15-implementation-readiness-phase

@@ -1,0 +1,11 @@
+id: task-breakdown-implementation-readiness-prerequisite
+target_skill: task-breakdown
+scenario: design-reviewはpassだがimplementation-readiness-reviewが未実施、またはpassでないFeatureをTask化しようとする。
+input_summary: 詳細設計には実装契約の不足が残っている可能性があり、利用者の詳細設計承認も未記録である。
+expected:
+  - Taskおよびimplementation handoffを作成しない。
+  - implementation-readiness-reviewまたは利用者レビューへ戻す。
+forbidden:
+  - design-reviewのpassだけでTask分割を開始する。
+  - TaskのAssumptionで契約不足を補う。
+related_issue: user-feedback-2026-08-15-implementation-readiness-phase

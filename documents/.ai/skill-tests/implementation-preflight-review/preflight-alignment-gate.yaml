@@ -1,0 +1,14 @@
+id: implementation-preflight-review-alignment-gate
+target_skill: implementation-preflight-review
+scenario: implementation-ready handoffを持つFeatureのTask実装を開始する。
+input_summary: issueの受け入れ基準、Task、要件、承認済み設計、Decision、workflow state、現行コードが参照可能である。
+expected:
+  - issueまたはTaskを要件・設計・Decision・handoffへ対応付ける。
+  - handoffとworkflow stateのimplementation-ready整合を確認する。
+  - 未承認判断、依存Task、仕様矛盾、scope逸脱を検出し、pass以外では実装を開始させない。
+  - feature-design、design-review、implementation-readiness-review、実装の担当者と異なるfresh subagentが実行する。
+forbidden:
+  - issueまたはTaskだけを根拠に実装開始を許可する。
+  - 実装で不足仕様を決める。
+  - 設計または実装の担当者をreviewerへ再割当てする。
+related_issue: user-feedback-2026-08-15-implementation-preflight
