@@ -12,6 +12,9 @@
 task frontend:install
 task frontend:storybook
 task backend:coverage
+task backend:integration
+task db:create
+task db:migrate
 task verify
 task run
 ```
@@ -21,7 +24,9 @@ Storybookは`task frontend:storybook`で起動し、`http://localhost:6006`で�
 
 全コマンドは `Taskfile.yml` を参照してください。
 
-`task backend:coverage` は、全Backend packageのstatement coverageが100%であることを検証します。
+`task backend:coverage` は、全Backend packageのstatement coverageが100%であることを検証し、`backend/coverage.html` を生成します。
+`task backend:integration` は、一時PostgreSQLコンテナとダミーデータでrepository結合テストを実行し、終了時にコンテナを削除します。`TEST_DATABASE_URL` を指定すると、そのDBを使用します。
+`task db:create` は開発用PostgreSQLを`127.0.0.1:5432`で起動します。`task db:migrate` はこのDBへmigrationを適用します。`task db:delete` はコンテナと全データを削除します。
 
 ## 構成
 
