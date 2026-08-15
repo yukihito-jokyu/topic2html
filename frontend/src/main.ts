@@ -1,3 +1,13 @@
-// The management UI is intentionally introduced in TASK-001-06. This module
-// marks an independent TypeScript workspace without importing backend internals.
-export {};
+import { createElement } from "react";
+import { createRoot } from "react-dom/client";
+
+import "./index.css";
+import { AdminAuthScreen } from "@/features/admin-auth/components";
+import { AdminAuthProvider } from "@/features/admin-auth/hooks/useAdminAuth";
+
+const root = document.getElementById("root");
+if (!root) throw new Error("management UI root is missing");
+
+createRoot(root).render(
+	createElement(AdminAuthProvider, null, createElement(AdminAuthScreen)),
+);
