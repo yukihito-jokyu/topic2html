@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -26,10 +27,11 @@ func TestRun(t *testing.T) {
 			err := run(tt.lookup, func(server *http.Server) error {
 				started = true
 				response := httptest.NewRecorder()
-				server.Handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/health", nil))
+				server.Handler.ServeHTTP(response, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/health", nil))
 				if response.Code != http.StatusNoContent {
 					t.Errorf("health status = %d, want %d", response.Code, http.StatusNoContent)
 				}
+
 				return tt.serveResult
 			})
 			if (err != nil) != tt.wantError {

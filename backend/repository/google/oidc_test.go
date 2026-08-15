@@ -41,6 +41,7 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 				if len(jwks.Keys) != 1 {
 					return errUnexpectedResponse
 				}
+
 				return nil
 			},
 			wantCalls: map[string]int{"/discovery": 1, "/token": 1, "/jwks": 1},
@@ -54,6 +55,7 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 			},
 			operation: func(client *Client, endpoint string) error {
 				_, err := client.Discover(context.Background(), endpoint+"/discovery")
+
 				return err
 			},
 			wantError: true,
@@ -66,6 +68,7 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 			},
 			operation: func(client *Client, endpoint string) error {
 				_, err := client.Discover(context.Background(), endpoint+"/discovery")
+
 				return err
 			},
 			wantError: true,
@@ -78,6 +81,7 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 			},
 			operation: func(client *Client, endpoint string) error {
 				_, err := client.Discover(context.Background(), endpoint+"/discovery")
+
 				return err
 			},
 			wantError: true,
@@ -88,6 +92,7 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 			configure: func(server *googleTestDouble) { server.status["/discovery"] = http.StatusServiceUnavailable },
 			operation: func(client *Client, endpoint string) error {
 				_, err := client.Discover(context.Background(), endpoint+"/discovery")
+
 				return err
 			},
 			wantError: true,
@@ -98,6 +103,7 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 			configure: func(server *googleTestDouble) { server.tokenBody = `{` },
 			operation: func(client *Client, endpoint string) error {
 				_, err := client.ExchangeAuthorizationCode(context.Background(), endpoint+"/token", "test-client", "test-secret", "test-code", "https://app.test/auth/google/callback", "test-verifier")
+
 				return err
 			},
 			wantError: true,
@@ -109,6 +115,7 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 			configure: func(server *googleTestDouble) { server.tokenBody = `{"id_token":"test-id-token"}{}` },
 			operation: func(client *Client, endpoint string) error {
 				_, err := client.ExchangeAuthorizationCode(context.Background(), endpoint+"/token", "test-client", "test-secret", "test-code", "https://app.test/auth/google/callback", "test-verifier")
+
 				return err
 			},
 			wantError: true,
@@ -120,6 +127,7 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 			configure: func(server *googleTestDouble) { server.tokenBody = `{}` },
 			operation: func(client *Client, endpoint string) error {
 				_, err := client.ExchangeAuthorizationCode(context.Background(), endpoint+"/token", "test-client", "test-secret", "test-code", "https://app.test/auth/google/callback", "test-verifier")
+
 				return err
 			},
 			wantError: true,
@@ -131,6 +139,7 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 			configure: func(server *googleTestDouble) { server.status["/jwks"] = http.StatusBadGateway },
 			operation: func(client *Client, endpoint string) error {
 				_, err := client.FetchJWKS(context.Background(), endpoint+"/jwks")
+
 				return err
 			},
 			wantError: true,
@@ -142,6 +151,7 @@ func TestOIDCBoundaryWithTestDouble(t *testing.T) {
 			configure: func(server *googleTestDouble) { server.jwksBody = `{"keys":[]}` },
 			operation: func(client *Client, endpoint string) error {
 				_, err := client.FetchJWKS(context.Background(), endpoint+"/jwks")
+
 				return err
 			},
 			wantError: true,
@@ -194,6 +204,7 @@ type googleTestDouble struct {
 }
 
 func newGoogleTestDouble() *googleTestDouble {
+	// #nosec G101 -- test fixture
 	return &googleTestDouble{
 		calls:      make(map[string]int),
 		lastMethod: make(map[string]string),
@@ -208,6 +219,7 @@ func (server *googleTestDouble) ServeHTTP(writer http.ResponseWriter, request *h
 	server.lastMethod[request.URL.Path] = request.Method
 	if status := server.status[request.URL.Path]; status != 0 {
 		writer.WriteHeader(status)
+
 		return
 	}
 	writer.Header().Set("Content-Type", "application/json")
@@ -217,6 +229,7 @@ func (server *googleTestDouble) ServeHTTP(writer http.ResponseWriter, request *h
 		if body == "" {
 			body = `{"authorization_endpoint":"` + serverURL(request) + `/authorize","token_endpoint":"` + serverURL(request) + `/token","jwks_uri":"` + serverURL(request) + `/jwks"}`
 		}
+		// #nosec G705 -- fixture body
 		_, _ = io.WriteString(writer, body)
 	case "/token":
 		body, _ := io.ReadAll(request.Body)

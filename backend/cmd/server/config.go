@@ -69,6 +69,7 @@ func loadConfig(lookup LookupEnv) (Config, error) {
 	callback := *parsedOrigin
 	callback.Path = callbackPath
 	callback.RawPath = ""
+
 	return Config{TrustedAppOrigin: parsedOrigin.String(), OAuthCallbackURI: callback.String(), GoogleClientID: clientID, GoogleSecret: clientSecret, AllowedEmail: allowedEmail, DatabaseURL: databaseURL, ProtectionKey: protectionKey}, nil
 }
 
@@ -77,6 +78,7 @@ func required(lookup LookupEnv, name string) (string, error) {
 	if !ok || strings.TrimSpace(value) == "" {
 		return "", fmt.Errorf("%s is required", name)
 	}
+
 	return value, nil
 }
 
@@ -88,6 +90,7 @@ func trustedOrigin(value string) (*url.URL, error) {
 	if u.Scheme == "https" || (u.Scheme == "http" && isLoopbackHost(u.Hostname())) {
 		return u, nil
 	}
+
 	return nil, errors.New("trusted app origin must use HTTPS outside loopback development")
 }
 
@@ -96,6 +99,7 @@ func isLoopbackHost(host string) bool {
 		return true
 	}
 	ip := net.ParseIP(host)
+
 	return ip != nil && ip.IsLoopback()
 }
 
@@ -104,6 +108,7 @@ func exactEmail(value string) error {
 	if err != nil || address.Address != value {
 		return errors.New("allowed email must be one exact email address")
 	}
+
 	return nil
 }
 
@@ -112,5 +117,6 @@ func postgresURL(value string) error {
 	if err != nil || (u.Scheme != "postgres" && u.Scheme != "postgresql") || u.Host == "" || u.User == nil {
 		return errors.New("database URL must be a PostgreSQL connection URL")
 	}
+
 	return nil
 }

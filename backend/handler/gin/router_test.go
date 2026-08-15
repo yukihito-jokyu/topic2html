@@ -1,6 +1,7 @@
 package ginadapter
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -19,7 +20,7 @@ func TestNewRouter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			response := httptest.NewRecorder()
-			NewRouter().ServeHTTP(response, httptest.NewRequest(http.MethodGet, tt.path, nil))
+			NewRouter().ServeHTTP(response, httptest.NewRequestWithContext(context.Background(), http.MethodGet, tt.path, nil))
 			if response.Code != tt.want {
 				t.Errorf("status = %d, want %d", response.Code, tt.want)
 			}
