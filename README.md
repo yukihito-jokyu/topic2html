@@ -10,15 +10,23 @@
 
 ```sh
 task frontend:install
+task frontend:storybook
+task backend:coverage
 task verify
-task frontend:dev
 task run
-task dev
 ```
+
+Storybookは`task frontend:storybook`で起動し、`http://localhost:6006`で確認できます。
+初回だけ`cd frontend && npx playwright install chromium`を実行してください。E2Eテストは`npm run test:e2e`で実行できます。
 
 全コマンドは `Taskfile.yml` を参照してください。
 
-## 初期骨格の制約
+`task backend:coverage` は、全Backend packageのstatement coverageが100%であることを検証します。
 
-- Serverは `127.0.0.1:8080` のみで待ち受けます。
-- 認証、Database、外部サービス、秘密値は扱いません。
+## 構成
+
+- `backend/` は独立したGo moduleです。GinはHTTP adapterに限定し、実行入口、Domain、Application、外部adapterを分離します。
+- `frontend/` は独立したNode.js/TypeScript作業領域です。Backend内部、PostgreSQL、Google、秘密情報には依存せず、将来の同一origin HTTP契約だけを利用します。
+- Serverは `127.0.0.1:8080` で待ち受けます。認証設定が不正な場合は起動に失敗します。
+
+OAuth/OIDC、PostgreSQL migration、session/CSRF、管理画面は後続Taskで実装します。設定値・Secretは環境からBackendだけへ渡し、リポジトリやBrowserへ置かないでください。
