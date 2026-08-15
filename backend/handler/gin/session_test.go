@@ -83,7 +83,13 @@ func TestSessionHandlerBootstrap(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/admin/auth/session", nil)
 			if tt.withCookie {
-				request.AddCookie(&http.Cookie{Name: adminSessionCookie, Value: "session"})
+				request.AddCookie(&http.Cookie{
+					Name:     adminSessionCookie,
+					Value:    "session",
+					Secure:   true,
+					HttpOnly: true,
+					SameSite: http.SameSiteLaxMode,
+				})
 			}
 			response := httptest.NewRecorder()
 			NewRouter(noOpOAuthService{}, &tt.service, observability.NewDiscardLogger()).ServeHTTP(response, request)
@@ -135,7 +141,13 @@ func TestSessionHandlerLogout(t *testing.T) {
 			request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/admin/auth/logout", nil)
 			request.Header.Set("Origin", "https://admin.example.test")
 			request.Header.Set("X-CSRF-Token", "csrf")
-			request.AddCookie(&http.Cookie{Name: adminSessionCookie, Value: "session"})
+			request.AddCookie(&http.Cookie{
+				Name:     adminSessionCookie,
+				Value:    "session",
+				Secure:   true,
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
+			})
 			response := httptest.NewRecorder()
 			NewRouter(noOpOAuthService{}, &tt.service, observability.NewDiscardLogger()).ServeHTTP(response, request)
 			if response.Code != tt.wantStatus || !strings.Contains(response.Body.String(), tt.wantBody) || response.Header().Get("Cache-Control") != "no-store" {

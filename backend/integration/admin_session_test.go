@@ -72,8 +72,11 @@ func TestAdminSessionHTTPPostgresIntegration(t *testing.T) {
 
 	bootstrap := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/auth/session", nil)
 	bootstrap.AddCookie(&http.Cookie{
-		Name:  adminSessionCookieName,
-		Value: reference,
+		Name:     adminSessionCookieName,
+		Value:    reference,
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
 	})
 	bootstrapResponse := httptest.NewRecorder()
 	router.ServeHTTP(bootstrapResponse, bootstrap)
@@ -95,8 +98,11 @@ func TestAdminSessionHTTPPostgresIntegration(t *testing.T) {
 	logout.Header.Set("Origin", "https://admin.example.test")
 	logout.Header.Set("X-CSRF-Token", csrfToken)
 	logout.AddCookie(&http.Cookie{
-		Name:  adminSessionCookieName,
-		Value: reference,
+		Name:     adminSessionCookieName,
+		Value:    reference,
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
 	})
 	logoutResponse := httptest.NewRecorder()
 	router.ServeHTTP(logoutResponse, logout)
@@ -111,8 +117,11 @@ func TestAdminSessionHTTPPostgresIntegration(t *testing.T) {
 
 	unauthenticated := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/auth/session", nil)
 	unauthenticated.AddCookie(&http.Cookie{
-		Name:  adminSessionCookieName,
-		Value: reference,
+		Name:     adminSessionCookieName,
+		Value:    reference,
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
 	})
 	unauthenticatedResponse := httptest.NewRecorder()
 	router.ServeHTTP(unauthenticatedResponse, unauthenticated)
