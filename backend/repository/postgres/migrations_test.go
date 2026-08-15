@@ -15,14 +15,45 @@ func TestApplyAdminAuthSchema(t *testing.T) {
 		pool      fakePool
 		wantError bool
 	}{
-		{"first apply", fakePool{transaction: &fakeTx{rows: []error{pgx.ErrNoRows}}}, false},
-		{"already applied", fakePool{transaction: &fakeTx{}}, false},
-		{"begin failure", fakePool{err: errors.New("boom")}, true},
-		{"metadata failure", fakePool{transaction: &fakeTx{exec: []error{errors.New("boom")}}}, true},
-		{"lookup failure", fakePool{transaction: &fakeTx{rows: []error{errors.New("boom")}}}, true},
-		{"DDL failure", fakePool{transaction: &fakeTx{rows: []error{pgx.ErrNoRows}, exec: []error{nil, errors.New("boom")}}}, true},
-		{"record failure", fakePool{transaction: &fakeTx{rows: []error{pgx.ErrNoRows}, exec: []error{nil, nil, errors.New("boom")}}}, true},
-		{"commit failure", fakePool{transaction: &fakeTx{rows: []error{pgx.ErrNoRows}, commit: errors.New("boom")}}, true},
+		{"first apply", fakePool{
+			transaction: &fakeTx{
+				rows: []error{pgx.ErrNoRows},
+			},
+		}, false},
+		{"already applied", fakePool{
+			transaction: &fakeTx{},
+		}, false},
+		{"begin failure", fakePool{
+			err: errors.New("boom"),
+		}, true},
+		{"metadata failure", fakePool{
+			transaction: &fakeTx{
+				exec: []error{errors.New("boom")},
+			},
+		}, true},
+		{"lookup failure", fakePool{
+			transaction: &fakeTx{
+				rows: []error{errors.New("boom")},
+			},
+		}, true},
+		{"DDL failure", fakePool{
+			transaction: &fakeTx{
+				rows: []error{pgx.ErrNoRows},
+				exec: []error{nil, errors.New("boom")},
+			},
+		}, true},
+		{"record failure", fakePool{
+			transaction: &fakeTx{
+				rows: []error{pgx.ErrNoRows},
+				exec: []error{nil, nil, errors.New("boom")},
+			},
+		}, true},
+		{"commit failure", fakePool{
+			transaction: &fakeTx{
+				rows:   []error{pgx.ErrNoRows},
+				commit: errors.New("boom"),
+			},
+		}, true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			err := applyAdminAuthSchema(context.Background(), tt.pool)

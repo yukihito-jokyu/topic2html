@@ -14,19 +14,62 @@ func TestLoadConfig(t *testing.T) {
 		wantURI   string
 		wantError bool
 	}{
-		{name: "valid", lookup: lookup(validEnvironment()), wantURI: "https://admin.example.test/auth/google/callback"},
-		{name: "nil lookup", wantError: true},
-		{name: "missing secret", configure: func(env map[string]string) { delete(env, "TOPIC2HTML_GOOGLE_CLIENT_SECRET") }, wantError: true},
-		{name: "missing client ID", configure: func(env map[string]string) { delete(env, "TOPIC2HTML_GOOGLE_CLIENT_ID") }, wantError: true},
-		{name: "missing email", configure: func(env map[string]string) { delete(env, "TOPIC2HTML_ALLOWED_EMAIL") }, wantError: true},
-		{name: "missing database URL", configure: func(env map[string]string) { delete(env, "TOPIC2HTML_DATABASE_URL") }, wantError: true},
-		{name: "missing protection key", configure: func(env map[string]string) { delete(env, "TOPIC2HTML_PROTECTION_KEY") }, wantError: true},
-		{name: "origin has path", configure: func(env map[string]string) { env["TOPIC2HTML_TRUSTED_APP_ORIGIN"] = "https://admin.example.test/admin" }, wantError: true},
-		{name: "non loopback HTTP origin", configure: func(env map[string]string) { env["TOPIC2HTML_TRUSTED_APP_ORIGIN"] = "http://admin.example.test" }, wantError: true},
-		{name: "display name email", configure: func(env map[string]string) { env["TOPIC2HTML_ALLOWED_EMAIL"] = "Admin <admin@example.test>" }, wantError: true},
-		{name: "non postgres database URL", configure: func(env map[string]string) {
-			env["TOPIC2HTML_DATABASE_URL"] = "mysql://user:password@db.example.test/app"
-		}, wantError: true},
+		{
+			name:    "valid",
+			lookup:  lookup(validEnvironment()),
+			wantURI: "https://admin.example.test/auth/google/callback",
+		},
+		{
+			name:      "nil lookup",
+			wantError: true,
+		},
+		{
+			name:      "missing secret",
+			configure: func(env map[string]string) { delete(env, "TOPIC2HTML_GOOGLE_CLIENT_SECRET") },
+			wantError: true,
+		},
+		{
+			name:      "missing client ID",
+			configure: func(env map[string]string) { delete(env, "TOPIC2HTML_GOOGLE_CLIENT_ID") },
+			wantError: true,
+		},
+		{
+			name:      "missing email",
+			configure: func(env map[string]string) { delete(env, "TOPIC2HTML_ALLOWED_EMAIL") },
+			wantError: true,
+		},
+		{
+			name:      "missing database URL",
+			configure: func(env map[string]string) { delete(env, "TOPIC2HTML_DATABASE_URL") },
+			wantError: true,
+		},
+		{
+			name:      "missing protection key",
+			configure: func(env map[string]string) { delete(env, "TOPIC2HTML_PROTECTION_KEY") },
+			wantError: true,
+		},
+		{
+			name:      "origin has path",
+			configure: func(env map[string]string) { env["TOPIC2HTML_TRUSTED_APP_ORIGIN"] = "https://admin.example.test/admin" },
+			wantError: true,
+		},
+		{
+			name:      "non loopback HTTP origin",
+			configure: func(env map[string]string) { env["TOPIC2HTML_TRUSTED_APP_ORIGIN"] = "http://admin.example.test" },
+			wantError: true,
+		},
+		{
+			name:      "display name email",
+			configure: func(env map[string]string) { env["TOPIC2HTML_ALLOWED_EMAIL"] = "Admin <admin@example.test>" },
+			wantError: true,
+		},
+		{
+			name: "non postgres database URL",
+			configure: func(env map[string]string) {
+				env["TOPIC2HTML_DATABASE_URL"] = "mysql://user:password@db.example.test/app"
+			},
+			wantError: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -54,8 +97,16 @@ func TestLoadConfigDoesNotExposeValues(t *testing.T) {
 		key   string
 		value string
 	}{
-		{name: "database URL", key: "TOPIC2HTML_DATABASE_URL", value: "only-for-test-not-a-production-secret"},
-		{name: "origin", key: "TOPIC2HTML_TRUSTED_APP_ORIGIN", value: "http://admin.example.test/private"},
+		{
+			name:  "database URL",
+			key:   "TOPIC2HTML_DATABASE_URL",
+			value: "only-for-test-not-a-production-secret",
+		},
+		{
+			name:  "origin",
+			key:   "TOPIC2HTML_TRUSTED_APP_ORIGIN",
+			value: "http://admin.example.test/private",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -80,9 +131,21 @@ func TestRequired(t *testing.T) {
 		present   bool
 		wantError bool
 	}{
-		{name: "value", value: "configured", present: true},
-		{name: "missing", wantError: true},
-		{name: "blank", value: " \t", present: true, wantError: true},
+		{
+			name:    "value",
+			value:   "configured",
+			present: true,
+		},
+		{
+			name:      "missing",
+			wantError: true,
+		},
+		{
+			name:      "blank",
+			value:     " \t",
+			present:   true,
+			wantError: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -105,17 +168,61 @@ func TestTrustedOrigin(t *testing.T) {
 		want      string
 		wantError bool
 	}{
-		{name: "HTTPS", value: "https://admin.example.test", want: "https://admin.example.test"},
-		{name: "loopback hostname", value: "http://localhost:8080", want: "http://localhost:8080"},
-		{name: "loopback IPv4", value: "http://127.0.0.1:8080", want: "http://127.0.0.1:8080"},
-		{name: "invalid", value: "://", wantError: true},
-		{name: "relative", value: "/admin", wantError: true},
-		{name: "without host", value: "https:", wantError: true},
-		{name: "user info", value: "https://user@admin.example.test", wantError: true},
-		{name: "path", value: "https://admin.example.test/admin", wantError: true},
-		{name: "query", value: "https://admin.example.test?next=admin", wantError: true},
-		{name: "fragment", value: "https://admin.example.test#admin", wantError: true},
-		{name: "remote HTTP", value: "http://admin.example.test", wantError: true},
+		{
+			name:  "HTTPS",
+			value: "https://admin.example.test",
+			want:  "https://admin.example.test",
+		},
+		{
+			name:  "loopback hostname",
+			value: "http://localhost:8080",
+			want:  "http://localhost:8080",
+		},
+		{
+			name:  "loopback IPv4",
+			value: "http://127.0.0.1:8080",
+			want:  "http://127.0.0.1:8080",
+		},
+		{
+			name:      "invalid",
+			value:     "://",
+			wantError: true,
+		},
+		{
+			name:      "relative",
+			value:     "/admin",
+			wantError: true,
+		},
+		{
+			name:      "without host",
+			value:     "https:",
+			wantError: true,
+		},
+		{
+			name:      "user info",
+			value:     "https://user@admin.example.test",
+			wantError: true,
+		},
+		{
+			name:      "path",
+			value:     "https://admin.example.test/admin",
+			wantError: true,
+		},
+		{
+			name:      "query",
+			value:     "https://admin.example.test?next=admin",
+			wantError: true,
+		},
+		{
+			name:      "fragment",
+			value:     "https://admin.example.test#admin",
+			wantError: true,
+		},
+		{
+			name:      "remote HTTP",
+			value:     "http://admin.example.test",
+			wantError: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -137,11 +244,31 @@ func TestIsLoopbackHost(t *testing.T) {
 		host string
 		want bool
 	}{
-		{name: "localhost", host: "localhost", want: true},
-		{name: "mixed case localhost", host: "LOCALHOST", want: true},
-		{name: "IPv4", host: "127.0.0.1", want: true},
-		{name: "IPv6", host: "::1", want: true},
-		{name: "remote", host: "admin.example.test", want: false},
+		{
+			name: "localhost",
+			host: "localhost",
+			want: true,
+		},
+		{
+			name: "mixed case localhost",
+			host: "LOCALHOST",
+			want: true,
+		},
+		{
+			name: "IPv4",
+			host: "127.0.0.1",
+			want: true,
+		},
+		{
+			name: "IPv6",
+			host: "::1",
+			want: true,
+		},
+		{
+			name: "remote",
+			host: "admin.example.test",
+			want: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -159,9 +286,20 @@ func TestExactEmail(t *testing.T) {
 		value     string
 		wantError bool
 	}{
-		{name: "valid", value: "admin@example.test"},
-		{name: "invalid", value: "admin", wantError: true},
-		{name: "display name", value: "Admin <admin@example.test>", wantError: true},
+		{
+			name:  "valid",
+			value: "admin@example.test",
+		},
+		{
+			name:      "invalid",
+			value:     "admin",
+			wantError: true,
+		},
+		{
+			name:      "display name",
+			value:     "Admin <admin@example.test>",
+			wantError: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -179,12 +317,34 @@ func TestPostgresURL(t *testing.T) {
 		value     string
 		wantError bool
 	}{
-		{name: "postgres", value: "postgres://app:password@db.example.test/app"},     // #nosec G101 -- test-only DSN
-		{name: "postgresql", value: "postgresql://app:password@db.example.test/app"}, // #nosec G101 -- test-only DSN
-		{name: "invalid", value: "://", wantError: true},
-		{name: "wrong scheme", value: "mysql://app:password@db.example.test/app", wantError: true}, // #nosec G101 -- test-only DSN
-		{name: "without host", value: "postgres://app:password@/app", wantError: true},
-		{name: "without user", value: "postgres://db.example.test/app", wantError: true},
+		{
+			name:  "postgres",
+			value: "postgres://app:password@db.example.test/app", // #nosec G101 -- test-only DSN
+		},
+		{
+			name:  "postgresql",
+			value: "postgresql://app:password@db.example.test/app", // #nosec G101 -- test-only DSN
+		},
+		{
+			name:      "invalid",
+			value:     "://",
+			wantError: true,
+		},
+		{
+			name:      "wrong scheme",
+			value:     "mysql://app:password@db.example.test/app", // #nosec G101 -- test-only DSN
+			wantError: true,
+		},
+		{
+			name:      "without host",
+			value:     "postgres://app:password@/app",
+			wantError: true,
+		},
+		{
+			name:      "without user",
+			value:     "postgres://db.example.test/app",
+			wantError: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

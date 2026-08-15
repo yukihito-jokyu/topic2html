@@ -36,14 +36,20 @@ type pgxTransaction interface {
 type Store struct{ pool pool }
 
 // NewStoreはpoolを注入してStoreを作成します。
-func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: newPGXPool(pool)} }
+func NewStore(pool *pgxpool.Pool) *Store {
+	return &Store{
+		pool: newPGXPool(pool),
+	}
+}
 
 type pgxPool struct {
 	begin func(context.Context) (pgxTransaction, error)
 }
 
 func newPGXPool(pool *pgxpool.Pool) pgxPool {
-	return pgxPool{begin: func(ctx context.Context) (pgxTransaction, error) { return pool.Begin(ctx) }}
+	return pgxPool{
+		begin: func(ctx context.Context) (pgxTransaction, error) { return pool.Begin(ctx) },
+	}
 }
 
 func (p pgxPool) Begin(ctx context.Context) (tx, error) {

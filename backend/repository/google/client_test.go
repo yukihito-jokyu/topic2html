@@ -15,8 +15,13 @@ func TestNewClient(t *testing.T) {
 		name      string
 		transport http.RoundTripper
 	}{
-		{name: "specified transport", transport: &recordingTransport{}},
-		{name: "default transport"},
+		{
+			name:      "specified transport",
+			transport: &recordingTransport{},
+		},
+		{
+			name: "default transport",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -40,9 +45,27 @@ func TestClientDo(t *testing.T) {
 		wantError bool
 		wantCalls int
 	}{
-		{name: "success", transport: &recordingTransport{}, endpoint: "https://google.test/discovery", wantCalls: 1},
-		{name: "transport error", transport: &recordingTransport{err: errors.New("unavailable")}, endpoint: "https://google.test/discovery", wantError: true, wantCalls: 1},
-		{name: "invalid endpoint", transport: &recordingTransport{}, endpoint: "://", wantError: true},
+		{
+			name:      "success",
+			transport: &recordingTransport{},
+			endpoint:  "https://google.test/discovery",
+			wantCalls: 1,
+		},
+		{
+			name: "transport error",
+			transport: &recordingTransport{
+				err: errors.New("unavailable"),
+			},
+			endpoint:  "https://google.test/discovery",
+			wantError: true,
+			wantCalls: 1,
+		},
+		{
+			name:      "invalid endpoint",
+			transport: &recordingTransport{},
+			endpoint:  "://",
+			wantError: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -142,7 +165,9 @@ func TestOIDCTransportFailure(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := NewClient(&recordingTransport{err: errors.New("unavailable")})
+			client := NewClient(&recordingTransport{
+				err: errors.New("unavailable"),
+			})
 			if err := tt.operation(client); err == nil {
 				t.Error("operation error = nil, want error")
 			}
@@ -161,5 +186,9 @@ func (t *recordingTransport) RoundTrip(*http.Request) (*http.Response, error) {
 		return nil, t.err
 	}
 
-	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("{}")), Header: make(http.Header)}, nil
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader("{}")),
+		Header:     make(http.Header),
+	}, nil
 }
