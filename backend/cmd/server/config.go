@@ -7,6 +7,8 @@ import (
 	"net/mail"
 	"net/url"
 	"strings"
+
+	"github.com/yukihito-jokyu/topic2html/backend/repository/google"
 )
 
 const callbackPath = "/auth/google/callback"
@@ -16,13 +18,14 @@ type LookupEnv func(string) (string, bool)
 
 // ConfigはServer限定の設定です。
 type Config struct {
-	TrustedAppOrigin string
-	OAuthCallbackURI string
-	GoogleClientID   string
-	GoogleSecret     string
-	AllowedEmail     string
-	DatabaseURL      string
-	ProtectionKey    string
+	TrustedAppOrigin        string
+	OAuthCallbackURI        string
+	GoogleClientID          string
+	GoogleSecret            string
+	GoogleDiscoveryEndpoint string
+	AllowedEmail            string
+	DatabaseURL             string
+	ProtectionKey           string
 }
 
 // loadConfigは設定を検証します。
@@ -64,19 +67,40 @@ func loadConfig(lookup LookupEnv) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	discoveryEndpoint, err := optionalLoopbackHTTPEndpoint(lookup, "TOPIC2HTML_GOOGLE_DISCOVERY_ENDPOINT", google.DefaultDiscoveryEndpoint)
+	if err != nil {
+		return Config{}, err
+	}
 	callback := *parsedOrigin
 	callback.Path = callbackPath
 	callback.RawPath = ""
 
 	return Config{
-		TrustedAppOrigin: parsedOrigin.String(),
-		OAuthCallbackURI: callback.String(),
-		GoogleClientID:   clientID,
-		GoogleSecret:     clientSecret,
-		AllowedEmail:     allowedEmail,
-		DatabaseURL:      databaseURL,
-		ProtectionKey:    protectionKey,
+		TrustedAppOrigin:        parsedOrigin.String(),
+		OAuthCallbackURI:        callback.String(),
+		GoogleClientID:          clientID,
+		GoogleSecret:            clientSecret,
+		GoogleDiscoveryEndpoint: discoveryEndpoint,
+		AllowedEmail:            allowedEmail,
+		DatabaseURL:             databaseURL,
+		ProtectionKey:           protectionKey,
 	}, nil
+}
+
+func optionalLoopbackHTTPEndpoint(lookup LookupEnv, name, defaultValue string) (string, error) {
+	value, present := lookup(name)
+	if !present || strings.TrimSpace(value) == "" {
+		return defaultValue, nil
+	}
+	endpoint, err := url.Parse(value)
+	if err != nil || !endpoint.IsAbs() || endpoint.Host == "" || endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" {
+		return "", errors.New("google discovery endpoint must be an absolute URL")
+	}
+	if endpoint.Scheme == "https" || (endpoint.Scheme == "http" && isLoopbackHost(endpoint.Hostname())) {
+		return endpoint.String(), nil
+	}
+
+	return "", errors.New("google discovery endpoint must use HTTPS outside loopback E2E")
 }
 
 func required(lookup LookupEnv, name string) (string, error) {

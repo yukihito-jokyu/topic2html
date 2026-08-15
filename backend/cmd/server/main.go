@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 	"github.com/yukihito-jokyu/topic2html/backend/apperr"
 	ginadapter "github.com/yukihito-jokyu/topic2html/backend/handler/gin"
 	"github.com/yukihito-jokyu/topic2html/backend/observability"
@@ -23,6 +24,8 @@ var (
 	listenAndServe              = (*http.Server).ListenAndServe
 	serverLogWriter   io.Writer = os.Stderr
 	exitProcess                 = os.Exit
+	loadEnvironment             = func() error { return loadDotEnv(func(filename string) error { return godotenv.Load(filename) }) }
+	runServer                   = run
 )
 
 type dependencies struct {
@@ -46,10 +49,30 @@ func main() {
 }
 
 func start() {
-	if err := run(lookupEnvironment, listenAndServe); err != nil {
+	if err := loadEnvironment(); err != nil {
+		observability.NewLogger(serverLogWriter).Error(context.Background(), "server.start.failed", err)
+		exitProcess(1)
+
+		return
+	}
+	if err := runServer(lookupEnvironment, listenAndServe); err != nil {
 		observability.NewLogger(serverLogWriter).Error(context.Background(), "server.start.failed", err)
 		exitProcess(1)
 	}
+}
+
+func loadDotEnv(loadFile func(string) error) error {
+	for _, filename := range []string{"../.env", ".env"} {
+		err := loadFile(filename)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func run(lookup LookupEnv, serve func(*http.Server) error) error {
@@ -72,9 +95,10 @@ func runWithDependencies(lookup LookupEnv, serve func(*http.Server) error, depen
 		return apperr.New(apperr.CodeUnavailable)
 	}
 	provider := google.NewProvider(google.NewClient(nil), google.ProviderConfig{
-		ClientID:     config.GoogleClientID,
-		ClientSecret: config.GoogleSecret,
-		RedirectURI:  config.OAuthCallbackURI,
+		ClientID:          config.GoogleClientID,
+		ClientSecret:      config.GoogleSecret,
+		RedirectURI:       config.OAuthCallbackURI,
+		DiscoveryEndpoint: config.GoogleDiscoveryEndpoint,
 	})
 	logger := observability.NewLogger(os.Stderr)
 	service, err := dependencies.newService(usecaseauth.Dependencies{

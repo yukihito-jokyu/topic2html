@@ -28,6 +28,18 @@ tasks:
     cmds:
       - npm run storybook
 
+  frontend:e2e:
+    desc: Playwright E2Eテストを実行し、録画を保存する
+    dir: frontend
+    cmds:
+      - npm run test:e2e
+
+  frontend:e2e:report:
+    desc: 最新のPlaywright E2Eレポートをブラウザーで開く
+    dir: frontend
+    cmds:
+      - npm run test:e2e:report
+
   backend:verify:
     deps: [backend:coverage, backend:lint]
     env:
@@ -90,3 +102,10 @@ tasks:
     dir: backend
     cmds:
       - go run ./cmd/server
+
+  dev:
+    desc: 開発用DB、Backend、Frontendを起動する
+    deps: [frontend:install, db:migrate]
+    cmds:
+      - bash scripts/create-dev-certificate.sh
+      - bash scripts/run-dev.sh
