@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 
@@ -40,7 +41,7 @@ func run(ctx context.Context, lookup func(string) (string, bool)) error {
 	}
 	defer closePool(pool)
 	if err := applyMigration(ctx, pool); err != nil {
-		return errors.New("migration failed")
+		return fmt.Errorf("migration failed: %w", err)
 	}
 
 	return nil
