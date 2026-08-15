@@ -45,6 +45,7 @@ tasks:
       GOLANGCI_LINT_CACHE: "{{.TASKFILE_DIR}}/.cache/topic2html-golangci-lint"
     cmds:
       - cd backend && test -z "$(gofmt -l $(find . -name '*.go' -not -path './vendor/*'))"
+      - test "$(golangci-lint version --short)" = "2.12.2"
       - cd backend && golangci-lint run ./...
 
   backend:coverage:
