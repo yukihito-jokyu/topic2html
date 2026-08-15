@@ -94,13 +94,13 @@ func optionalLoopbackHTTPEndpoint(lookup LookupEnv, name, defaultValue string) (
 	}
 	endpoint, err := url.Parse(value)
 	if err != nil || !endpoint.IsAbs() || endpoint.Host == "" || endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" {
-		return "", errors.New("Google discovery endpoint must be an absolute URL")
+		return "", errors.New("google discovery endpoint must be an absolute URL")
 	}
 	if endpoint.Scheme == "https" || (endpoint.Scheme == "http" && isLoopbackHost(endpoint.Hostname())) {
 		return endpoint.String(), nil
 	}
 
-	return "", errors.New("Google discovery endpoint must use HTTPS outside loopback E2E")
+	return "", errors.New("google discovery endpoint must use HTTPS outside loopback E2E")
 }
 
 func required(lookup LookupEnv, name string) (string, error) {
