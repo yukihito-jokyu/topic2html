@@ -5,10 +5,16 @@ on:
     branches: [main]
     paths:
       - "frontend/**"
+      - "backend/**"
+      - "scripts/**"
+      - "Taskfile.yml"
       - ".github/workflows/frontend-ci.yml"
   pull_request:
     paths:
       - "frontend/**"
+      - "backend/**"
+      - "scripts/**"
+      - "Taskfile.yml"
       - ".github/workflows/frontend-ci.yml"
   workflow_dispatch:
 
@@ -30,6 +36,11 @@ jobs:
           node-version-file: frontend/.nvmrc
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+
+      - name: Go を設定
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
 
       - name: 依存を同期
         run: npm ci
@@ -54,6 +65,17 @@ jobs:
 
       - name: Playwright E2E を実行
         run: npm run test:e2e
+
+      - name: Playwright録画を保存
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-test-results
+          path: |
+            frontend/test-results/
+            frontend/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Vitest を実行
         run: npm test
