@@ -1,0 +1,13 @@
+id: impl-go-server-postgres-concise-comments
+target_skill: impl-go-server-postgres
+scenario: Go Serverのlint対応でテストfixtureとSSRF解析にコメントが必要になる。
+input_summary: golangci-lintの指摘を修正し、コメントを追加する。
+expected:
+  - コメントは必要な意図または安全性だけを一文で示す。
+  - package宣言の直前にコメントを置かない。
+  - lint抑制コメントは規則IDと最小限の理由だけを含む。
+forbidden:
+  - 実装手順や自明なコード動作を説明する長いコメントを追加する。
+  - packageコメントを追加する。
+  - lint抑制の理由を省略する。
+related_issue: user-feedback-2026-08-15

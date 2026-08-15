@@ -179,10 +179,10 @@ func TestPostgresURL(t *testing.T) {
 		value     string
 		wantError bool
 	}{
-		{name: "postgres", value: "postgres://app:password@db.example.test/app"},
-		{name: "postgresql", value: "postgresql://app:password@db.example.test/app"},
+		{name: "postgres", value: "postgres://app:password@db.example.test/app"},     // #nosec G101 -- test-only DSN
+		{name: "postgresql", value: "postgresql://app:password@db.example.test/app"}, // #nosec G101 -- test-only DSN
 		{name: "invalid", value: "://", wantError: true},
-		{name: "wrong scheme", value: "mysql://app:password@db.example.test/app", wantError: true},
+		{name: "wrong scheme", value: "mysql://app:password@db.example.test/app", wantError: true}, // #nosec G101 -- test-only DSN
 		{name: "without host", value: "postgres://app:password@/app", wantError: true},
 		{name: "without user", value: "postgres://db.example.test/app", wantError: true},
 	}
@@ -196,6 +196,7 @@ func TestPostgresURL(t *testing.T) {
 }
 
 func validEnvironment() map[string]string {
+	// #nosec G101 -- test fixture
 	return map[string]string{
 		"TOPIC2HTML_TRUSTED_APP_ORIGIN":   "https://admin.example.test",
 		"TOPIC2HTML_GOOGLE_CLIENT_ID":     "test-client-id",
@@ -207,5 +208,9 @@ func validEnvironment() map[string]string {
 }
 
 func lookup(values map[string]string) LookupEnv {
-	return func(key string) (string, bool) { value, ok := values[key]; return value, ok }
+	return func(key string) (string, bool) {
+		value, ok := values[key]
+
+		return value, ok
+	}
 }

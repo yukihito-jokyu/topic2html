@@ -1,0 +1,10 @@
+id: impl-project-verification-project-script-placement
+target_skill: impl-project-verification
+scenario: Backend検証Taskのためにcoverageまたは一時PostgreSQLの実行scriptを追加する。
+input_summary: Taskから実行する検証scriptを実装する。
+expected:
+  - scriptはリポジトリのscripts/へ配置する。
+  - Taskfileはリポジトリのscriptを呼び出す。
+forbidden:
+  - Project実行用scriptをSkill配下へ追加する。
+related_issue: user-feedback-2026-08-15

@@ -69,6 +69,7 @@ func TestOIDCRequestConstructionFailure(t *testing.T) {
 			name: "discovery request",
 			operation: func(client *Client) error {
 				_, err := client.Discover(context.Background(), "https://google.test/discovery")
+
 				return err
 			},
 		},
@@ -76,6 +77,7 @@ func TestOIDCRequestConstructionFailure(t *testing.T) {
 			name: "token request",
 			operation: func(client *Client) error {
 				_, err := client.ExchangeAuthorizationCode(context.Background(), "https://google.test/token", "client", "secret", "code", "https://app.test/callback", "verifier")
+
 				return err
 			},
 		},
@@ -102,6 +104,7 @@ func TestOIDCRejectsInvalidEndpoints(t *testing.T) {
 			name: "discovery",
 			operation: func(client *Client) error {
 				_, err := client.Discover(context.Background(), "://")
+
 				return err
 			},
 		},
@@ -109,6 +112,7 @@ func TestOIDCRejectsInvalidEndpoints(t *testing.T) {
 			name: "token",
 			operation: func(client *Client) error {
 				_, err := client.ExchangeAuthorizationCode(context.Background(), "://", "client", "secret", "code", "https://app.test/callback", "verifier")
+
 				return err
 			},
 		},
@@ -131,6 +135,7 @@ func TestOIDCTransportFailure(t *testing.T) {
 			name: "discovery",
 			operation: func(client *Client) error {
 				_, err := client.Discover(context.Background(), "https://google.test/discovery")
+
 				return err
 			},
 		},
@@ -155,5 +160,6 @@ func (t *recordingTransport) RoundTrip(*http.Request) (*http.Response, error) {
 	if t.err != nil {
 		return nil, t.err
 	}
+
 	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("{}")), Header: make(http.Header)}, nil
 }

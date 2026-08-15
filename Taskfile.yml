@@ -1,5 +1,11 @@
 version: "3"
 
+vars:
+  DB_IMAGE: topic2html-postgres:local
+  DB_CONTAINER: topic2html-postgres
+  DB_VOLUME: topic2html-postgres-data
+  DB_URL: postgres://topic2html:topic2html@127.0.0.1:5432/topic2html?sslmode=disable
+
 tasks:
   frontend:install:
     dir: frontend
@@ -23,24 +29,58 @@ tasks:
       - npm run storybook
 
   backend:verify:
-    deps: [backend:coverage]
+    deps: [backend:coverage, backend:lint]
     env:
       GOCACHE: "{{.TASKFILE_DIR}}/.cache/topic2html-gocache"
       GOLANGCI_LINT_CACHE: "{{.TASKFILE_DIR}}/.cache/topic2html-golangci-lint"
     cmds:
       - cd backend && go mod download
       - cd backend && go mod verify
-      - cd backend && test -z "$(gofmt -l $(find . -name '*.go' -not -path './vendor/*'))"
-      - cd backend && golangci-lint run ./...
       - cd backend && go test ./...
       - cd backend && go build -o /tmp/topic2html-server ./cmd/server
+
+  backend:lint:
+    env:
+      GOCACHE: "{{.TASKFILE_DIR}}/.cache/topic2html-gocache"
+      GOLANGCI_LINT_CACHE: "{{.TASKFILE_DIR}}/.cache/topic2html-golangci-lint"
+    cmds:
+      - cd backend && test -z "$(gofmt -l $(find . -name '*.go' -not -path './vendor/*'))"
+      - cd backend && golangci-lint run ./...
 
   backend:coverage:
     env:
       GOCACHE: "{{.TASKFILE_DIR}}/.cache/topic2html-gocache"
       GOLANGCI_LINT_CACHE: "{{.TASKFILE_DIR}}/.cache/topic2html-golangci-lint"
     cmds:
-      - cd backend && bash ../.agents/skills/impl-project-verification/scripts/check-backend-coverage.sh
+      - cd backend && bash ../scripts/check-backend-coverage.sh
+
+  backend:migrate:
+    cmds:
+      - cd backend && go run ./cmd/migrate
+
+  db:create:
+    env:
+      DB_IMAGE: "{{.DB_IMAGE}}"
+      DB_CONTAINER: "{{.DB_CONTAINER}}"
+      DB_VOLUME: "{{.DB_VOLUME}}"
+    cmds:
+      - bash scripts/create-dev-postgres.sh
+
+  db:delete:
+    cmds:
+      - docker rm --force {{.DB_CONTAINER}} >/dev/null 2>&1 || true
+      - docker volume rm {{.DB_VOLUME}} >/dev/null 2>&1 || true
+
+  db:migrate:
+    deps: [db:create]
+    env:
+      TOPIC2HTML_DATABASE_URL: "{{.DB_URL}}"
+    cmds:
+      - task backend:migrate
+
+  backend:integration:
+    cmds:
+      - cd backend && bash ../scripts/run-postgres-integration.sh
 
   verify:
     deps: [frontend:verify, backend:verify]

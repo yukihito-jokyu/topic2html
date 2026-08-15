@@ -53,6 +53,7 @@ description: topic2htmlのGo信頼済みServerとPostgreSQL永続化を実装す
 - `backend/cmd/`だけをcomposition rootとし、設定・Secretを読取り、`handler`、`usecase`、`repository`、`domain`をconstructor injectionで組み立てる。設定・Secretをそれ以外の層へ読ませない。
 - migrationは版管理SQLとして保存し、アプリ起動やBrowserから任意に適用できる形にしない。
 - Secret、実運用token、実メールアドレス、接続文字列をソース、fixture、ログへ置かない。
+- コメントは必要な意図・安全性だけを一文で簡潔に記述し、package宣言の直前には書かない。lint抑制では規則IDと最小限の理由だけを添える。
 - Go testは、複数の入力・期待結果・失敗経路を持つ対象をtable-driven testで記述する。
 - `backend/`のカバレッジ検証は、実装者と独立reviewerが同じリポジトリ内の入口から実行できるようにする。原則として`task backend:coverage`を提供し、代替入口を使う場合はTask規約に明記する。
 

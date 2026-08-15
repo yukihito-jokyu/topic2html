@@ -44,6 +44,7 @@ description: topic2htmlのGo、React、PostgreSQL、外部境界を横断する�
 ## File Placement Rules
 
 - 既存のGo、frontend、E2E、Task構成へ従い、テストを対象責務の近くへ置く。
+- ProjectのTaskから実行するscriptはリポジトリの`scripts/`へ置き、Skill配下には置かない。
 - test doubleとfixtureは本番接続先・実資格情報を必要としない形で管理する。
 - E2EがGoogle/Codexや生成HTML隔離originを扱う場合、対象Featureが所有する承認済み境界を超えない。
 - Go testは、複数の入力・期待結果・失敗経路を持つ対象をtable-driven testで記述する。

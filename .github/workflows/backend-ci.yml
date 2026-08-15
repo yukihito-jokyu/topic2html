@@ -5,12 +5,14 @@ on:
     branches: [main]
     paths:
       - "backend/**"
-      - ".agents/skills/impl-project-verification/scripts/check-backend-coverage.sh"
+      - "scripts/check-backend-coverage.sh"
+      - ".golangci.yml"
       - ".github/workflows/backend-ci.yml"
   pull_request:
     paths:
       - "backend/**"
-      - ".agents/skills/impl-project-verification/scripts/check-backend-coverage.sh"
+      - "scripts/check-backend-coverage.sh"
+      - ".golangci.yml"
       - ".github/workflows/backend-ci.yml"
   workflow_dispatch:
 
@@ -50,7 +52,7 @@ jobs:
 
       - name: Backend coverage を検証
         working-directory: backend
-        run: bash ../.agents/skills/impl-project-verification/scripts/check-backend-coverage.sh
+        run: bash ../scripts/check-backend-coverage.sh
 
       - name: Backend をビルド
         working-directory: backend

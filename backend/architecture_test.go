@@ -37,6 +37,7 @@ func TestNamedLayersExistAndLegacyInternalDirectoryIsAbsent(t *testing.T) {
 				if !errors.Is(err, os.ErrNotExist) {
 					t.Errorf("legacy internal directory remains: %v", err)
 				}
+
 				return
 			}
 			if err != nil || !info.IsDir() {
@@ -72,6 +73,7 @@ func backendRoot(t *testing.T) string {
 	if !ok {
 		t.Fatal("runtime.Caller failed")
 	}
+
 	return filepath.Dir(file)
 }
 
@@ -99,6 +101,7 @@ func assertLayerHasNoForbiddenImports(t *testing.T, directory string, forbidden 
 				}
 			}
 		}
+
 		return nil
 	})
 	if err != nil {

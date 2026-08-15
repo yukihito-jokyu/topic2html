@@ -1,4 +1,3 @@
-// Package googleはGoogle HTTP境界です。
 package google
 
 import (
@@ -27,6 +26,7 @@ func NewClient(transport http.RoundTripper) *Client {
 	if transport == nil {
 		transport = http.DefaultTransport
 	}
+
 	return &Client{
 		httpClient: &http.Client{Transport: transport, Timeout: RequestTimeout},
 		newRequest: http.NewRequestWithContext,
@@ -39,6 +39,7 @@ func (c *Client) Do(ctx context.Context, method, endpoint string, body io.Reader
 	if err != nil {
 		return nil, err
 	}
+
 	return c.httpClient.Do(req)
 }
 
@@ -74,6 +75,7 @@ func (c *Client) Discover(ctx context.Context, endpoint string) (Discovery, erro
 	if err := requireEndpoint(discovery.JWKSURI); err != nil {
 		return Discovery{}, errors.New("google discovery is invalid")
 	}
+
 	return discovery, nil
 }
 
@@ -102,6 +104,7 @@ func (c *Client) ExchangeAuthorizationCode(ctx context.Context, endpoint, client
 	if strings.TrimSpace(token.IDToken) == "" {
 		return TokenResponse{}, errors.New("google token response is invalid")
 	}
+
 	return token, nil
 }
 
@@ -114,6 +117,7 @@ func (c *Client) FetchJWKS(ctx context.Context, endpoint string) (JWKS, error) {
 	if len(jwks.Keys) == 0 {
 		return JWKS{}, errors.New("google JWKS response is invalid")
 	}
+
 	return jwks, nil
 }
 
@@ -125,10 +129,12 @@ func (c *Client) getJSON(ctx context.Context, endpoint string, output any) error
 	if err != nil {
 		return errors.New("google request is invalid")
 	}
+
 	return c.doJSON(req, output)
 }
 
 func (c *Client) doJSON(req *http.Request, output any) error {
+	// #nosec G704 -- validated endpoint
 	response, err := c.httpClient.Do(req)
 	if err != nil {
 		return errors.New("google request failed")
@@ -144,6 +150,7 @@ func (c *Client) doJSON(req *http.Request, output any) error {
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		return errors.New("google response is invalid")
 	}
+
 	return nil
 }
 
@@ -152,5 +159,6 @@ func requireEndpoint(value string) error {
 	if err != nil || endpoint.Scheme == "" || endpoint.Host == "" {
 		return errors.New("endpoint is invalid")
 	}
+
 	return nil
 }
