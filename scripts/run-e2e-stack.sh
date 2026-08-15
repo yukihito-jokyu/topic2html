@@ -34,6 +34,22 @@ wait_for() {
 	exit 1
 }
 
+wait_for_postgres() {
+	for _ in {1..90}; do
+		if ! docker inspect --format '{{.State.Running}}' "$container" 2>/dev/null | grep -qx true; then
+			break
+		fi
+		if docker exec "$container" pg_isready -U topic2html -d topic2html >/dev/null 2>&1; then
+			return
+		fi
+		sleep 1
+	done
+
+	echo "PostgreSQL did not become reachable; container logs follow:" >&2
+	docker logs "$container" >&2 || true
+	exit 1
+}
+
 trap cleanup EXIT INT TERM
 
 docker run --rm --detach --name "$container" \
@@ -43,16 +59,7 @@ docker run --rm --detach --name "$container" \
 	-p 127.0.0.1::5432 \
 	postgres:16-alpine >/dev/null
 database_port="$(docker port "$container" 5432/tcp | sed -E 's/.*:([0-9]+)$/\1/')"
-for _ in {1..30}; do
-	if docker exec "$container" pg_isready -U topic2html -d topic2html >/dev/null 2>&1; then
-		break
-	fi
-	sleep 1
-done
-if ! docker exec "$container" pg_isready -U topic2html -d topic2html >/dev/null 2>&1; then
-	echo "PostgreSQL did not become reachable" >&2
-	exit 1
-fi
+wait_for_postgres
 
 export TOPIC2HTML_TRUSTED_APP_ORIGIN="https://localhost:5173"
 export TOPIC2HTML_GOOGLE_CLIENT_ID="e2e-client-id"
