@@ -3,6 +3,9 @@ set -euo pipefail
 
 temporary_directory="$(mktemp -d "${TMPDIR:-/tmp}/topic2html-coverage.XXXXXX")"
 trap 'rm -rf "$temporary_directory"' EXIT
+merged_profile="$temporary_directory/coverage.out"
+coverage_html="${COVERAGE_HTML:-coverage.html}"
+printf 'mode: count\n' >"$merged_profile"
 
 total_statements=0
 covered_statements=0
@@ -10,6 +13,7 @@ covered_statements=0
 while IFS= read -r package; do
 	profile="$temporary_directory/$(printf '%s' "$package" | tr '/' '_').out"
 	go test -coverpkg="$package" -coverprofile="$profile" "$package"
+	tail -n +2 "$profile" >>"$merged_profile"
 
 	coverage="$(awk '
 		NR > 1 {
@@ -44,3 +48,6 @@ printf 'total: %s%% (%d/%d statements)\n' "$percentage" "$covered_statements" "$
 if (( covered_statements != total_statements )); then
 	exit 1
 fi
+
+go tool cover -html="$merged_profile" -o "$coverage_html"
+printf 'coverage HTML: %s\n' "$coverage_html"
