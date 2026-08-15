@@ -1,0 +1,13 @@
+id: feature-design-screen-design-coverage-gate
+target_skill: feature-design
+scenario: 信頼済み管理画面に、生成開始、進捗表示、失敗後の再試行を追加するFeatureを詳細設計する。
+input_summary: FeatureはHTTP APIと画面操作を含み、画面状態によって利用者の操作可能条件と次のAPI呼出しが変わる。
+expected:
+  - 画面設計仕様書を`features/{feature_id}/design/`配下に作成し、design.mdから参照する。
+  - 対象画面、利用者、到達・退出、主要領域、操作、loading・error等の状態、API／operation対応を記載する。
+  - 要件に該当するアクセシビリティ、responsive、秘密情報非露出を記載する。
+forbidden:
+  - API契約だけを画面設計の代替として扱う。
+  - 画面コンポーネントのfile path、symbol、framework API、根拠のないpixel値を固定する。
+  - 画面があるFeatureをnot_applicableとして理由なく省略する。
+related_issue: user-feedback-2026-08-15-screen-design-specification

@@ -1,0 +1,11 @@
+id: planning-orchestrator-bootstrap-handoff-schema
+target_skill: planning-orchestrator
+scenario: workflow設定が存在しないプロジェクトで、要件整理からTask分割までを開始する。
+input_summary: ユーザーがPlanning workflowの開始を依頼し、リポジトリには`.ai/workflow/`がない。
+expected:
+  - Bootstrap時に`implementation-handoff-schema.yaml`を含むworkflow設定を初期化する。
+  - task-breakdownが参照するhandoff schemaが、Task生成前に存在する。
+forbidden:
+  - task-breakdownの必須入力であるhandoff schemaを未作成のまま進行する。
+  - Feature固有のTaskや設計でschema欠落を補う。
+related_issue: workflow-gap-2026-08-14-handoff-schema

@@ -1,0 +1,80 @@
+feature:
+  id: FEAT-001
+  name: 管理者本人確認と管理アクセス
+  planning_status: implementation_ready
+requirements:
+  - id: REQ-026
+    obligation: 事前登録済みGoogleメールアドレスだけに管理操作を許可する。
+  - id: REQ-027
+    obligation: 管理者以外による生成・管理操作を拒否する。
+business_rules:
+  - id: BR-001
+    obligation: 許可メールは一件だけであり、検証済みメールとの完全一致で認可する。
+  - id: BR-015
+    obligation: 管理情報・秘密情報を公開・失敗表示へ出さない。
+logical_areas:
+  - 設定・外部OAuth境界
+  - 保護記録・migration
+  - OAuth/OIDC本人確認
+  - session・CSRF・管理アクセスガード
+  - 管理認証画面
+  - 自動検証
+tasks:
+  - id: TASK-001-01
+    purpose: 認証設定と起動時検証を整備する。
+    depends_on: []
+  - id: TASK-001-02
+    purpose: 管理認証の保護記録とmigrationを実装する。
+    depends_on: [TASK-001-01]
+  - id: TASK-001-03
+    purpose: Google OAuth/OIDCによる管理session発行を実装する。
+    depends_on: [TASK-001-01, TASK-001-02]
+  - id: TASK-001-04
+    purpose: 管理session・CSRF・共通アクセスガードを実装する。
+    depends_on: [TASK-001-01, TASK-001-02]
+  - id: TASK-001-05
+    purpose: 管理認証画面の状態と操作を実装する。
+    depends_on: [TASK-001-03, TASK-001-04]
+  - id: TASK-001-06
+    purpose: 認証契約の検証を自動化する。
+    depends_on: [TASK-001-01, TASK-001-02, TASK-001-03, TASK-001-04, TASK-001-05]
+acceptance_criteria:
+  source: tasks.mdの各Task受け入れ基準およびdesign/test-strategy.md
+  feature_complete:
+    - 許可メールの検証済みGoogle利用者だけが管理操作を行える。
+    - 未認証・不許可・失敗・取消・期限切れ・再使用では管理操作を行えない。
+    - 管理認証の画面、API、DB、Cookie、CSRF、外部OAuth、検証が設計契約に一致する。
+constraints:
+  - Go Server、React管理画面、PostgreSQL、Google OAuth/OIDCのServer側検証を使用する。
+  - opaque cookie、Server側保護記録、同期CSRF token、trusted Origin照合、fail closedを守る。
+  - 認証情報・Secret・許可メール・token・cookie値をBrowser、生成HTML、公開表示、ログ、fixtureへ出さない。
+  - 生成HTML隔離originへ資格情報を渡さず、隔離originの結合検証はFEAT-005が所有する。
+approved_decisions:
+  - DEC-ARCH-001
+  - DEC-ARCH-002
+  - DEC-ARCH-003
+  - DEC-FEAT-001
+  - DEC-FEAT-002
+interfaces_and_contracts:
+  database_and_migration: design/database-schema.md
+  session_and_csrf: design/session-contract.md
+  http: design/http-contract.md
+  operations: design/operations/
+  runtime_configuration: design/runtime-configuration.md
+  screen_specification: design/screen-specification.md
+  test_strategy: design/test-strategy.md
+  user_operation: design/use-cases/admin-login-and-management.md
+design_readiness_audit:
+  feature_design: completed
+  design_review: features/FEAT-001/design-review.md
+  design_review_result: pass
+  implementation_readiness_review: features/FEAT-001/implementation-readiness-review.md
+  implementation_readiness_review_result: pass
+  user_approval: "2026-08-15: 更新後の詳細設計を利用者が承認"
+  outcome: 実装者が製品・業務・公開・セキュリティ判断を再設計せずに着手できる。
+out_of_scope:
+  - 生成・検証・再試行・試行履歴の業務契約と画面（FEAT-002）
+  - 版・公開の業務契約と画面（FEAT-003）
+  - タグ・掲載場所の業務契約と画面（FEAT-004）
+  - 生成HTML隔離表示と隔離originの結合検証（FEAT-005）
+  - file path、symbol、framework API、局所的なコード構造

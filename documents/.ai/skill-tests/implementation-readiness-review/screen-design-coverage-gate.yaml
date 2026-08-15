@@ -1,0 +1,11 @@
+id: implementation-readiness-review-screen-design-coverage-gate
+target_skill: implementation-readiness-review
+scenario: 画面から管理APIを呼び出すFeatureのdesign-reviewがpassである。
+input_summary: APIのwire contractはあるが、対象画面、表示状態、操作可能条件、API結果の画面反映が設計されていない。
+expected:
+  - 画面設計仕様書の不足を実装者が再設計すべき欠落として記録する。
+  - 判定をpass以外とし、Feature Designへ差し戻す。
+forbidden:
+  - API契約だけを根拠にpassにする。
+  - 実装Taskで画面設計を補うよう指示する。
+related_issue: user-feedback-2026-08-15-screen-design-specification

@@ -1,0 +1,10 @@
+id: design-review-implementation-readiness-next-gate
+target_skill: design-review
+scenario: 認証、永続化、HTTP操作を持つFeatureの詳細設計が、要件・承認済みDecisionとの整合監査でpassになった。
+input_summary: 設計レビューは根拠トレーサビリティと資料間整合を確認したが、実装者視点のDDL、wire、transaction、設定運用の完全性監査は未実施である。
+expected:
+  - passの次ゲートをimplementation-readiness-reviewとして記録する。
+  - 利用者による詳細設計承認またはTask Breakdownへ直接進めない。
+forbidden:
+  - design-reviewのpassを実装準備完了または利用者承認可能の根拠として扱う。
+related_issue: user-feedback-2026-08-15-implementation-readiness-phase

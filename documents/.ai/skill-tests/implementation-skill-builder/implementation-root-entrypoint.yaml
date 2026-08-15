@@ -1,0 +1,12 @@
+id: implementation-skill-builder-implementation-root-entrypoint
+target_skill: implementation-skill-builder
+scenario: Planning成果物が`documents/`にあり、実装対象の親リポジトリへ実装Skillを生成する。
+input_summary: 親リポジトリに生成した`impl-*` Skillはあるが、親Rootの`AGENTS.md`とPlanning workflowへ到達するorchestration entrypointがない。
+expected:
+  - 実装Rootの`AGENTS.md`とPlanning workflowへ到達するorchestration entrypointの有無を確認する。
+  - 欠けている場合、Planning正本の位置を明示する最小のRoot運用入口を`skill-maintainer`で補う。
+  - Implementation Skillの配置先とPlanning成果物の正本を混同しない。
+forbidden:
+  - "`impl-*` Skillだけで実装開始可能と扱う。"
+  - "workflow成果物を親リポジトリへ複製する。"
+related_issue: user-feedback-2026-08-15-implementation-root-entrypoint

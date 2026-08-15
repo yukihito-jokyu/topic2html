@@ -1,0 +1,25 @@
+version: 1
+required_fields:
+  - feature
+  - requirements
+  - business_rules
+  - tasks
+  - logical_areas
+  - acceptance_criteria
+  - constraints
+  - approved_decisions
+  - interfaces_and_contracts
+  - design_readiness_audit
+  - out_of_scope
+field_guidance:
+  feature: "Feature ID、名称、Planning上の状態を記載する。"
+  requirements: "対象REQと、その義務を記載する。"
+  business_rules: "対象BRと、その義務を記載する。"
+  tasks: "各TaskのID、目的、依存関係、受け入れ基準への参照を記載する。"
+  logical_areas: "技術実装を固定しない論理責務を記載する。"
+  acceptance_criteria: "Feature完了の確認可能な条件を記載する。"
+  constraints: "セキュリティ、境界、技術制約を記載する。"
+  approved_decisions: "適用する承認済みDecisionと状態を記載する。"
+  interfaces_and_contracts: "契約の状態と正規成果物への参照を記載する。not_applicableの理由も記載する。"
+  design_readiness_audit: "Task化前の監査結果、独立レビュー、利用者承認の記録を記載する。"
+  out_of_scope: "他FeatureまたはImplementation領域へ委譲する責務を記載する。"

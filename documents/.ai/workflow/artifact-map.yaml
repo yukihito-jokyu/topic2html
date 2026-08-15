@@ -1,0 +1,24 @@
+version: 1
+artifacts:
+  requirements/**:
+    owner: requirements-structuring
+  planning/**:
+    owner: feature-planning
+  design/**:
+    owner: initial-design
+  features/*/design/**:
+    owner: feature-design
+  features/*/decisions/**:
+    owner: feature-design
+  features/*/design-review.md:
+    owner: design-review
+  features/*/implementation-readiness-review.md:
+    owner: implementation-readiness-review
+  features/*/tasks.md:
+    owner: task-breakdown
+  features/*/implementation-handoff.yaml:
+    owner: task-breakdown
+  .ai/workflow/state.yaml:
+    owner: planning-orchestrator
+  .ai/workflow/implementation-skills.yaml:
+    owner: implementation-skill-builder

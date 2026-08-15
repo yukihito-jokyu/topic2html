@@ -1,0 +1,13 @@
+id: implementation-conformance-review-alignment-gate
+target_skill: implementation-conformance-review
+scenario: Featureの実装diffと検証結果を完了として報告する前に監査する。
+input_summary: issueまたはTask、要件、設計、Decision、handoff、実装diff、検証結果が参照可能である。
+expected:
+  - 受け入れ基準を実装と検証へ対応付ける。
+  - 承認済み仕様からの逸脱、未承認dependency、認可・秘密情報・隔離境界の違反を探す。
+  - feature-design、design-review、implementation-readiness-review、実装、実装前reviewerの担当者と異なるfresh subagentが実行し、pass以外では実装完了にしない。
+forbidden:
+  - test成功だけで仕様適合とみなす。
+  - reviewerがコードまたは設計を直接編集する。
+  - 設計、実装、実装前reviewerの担当者をconformance reviewerへ再割当てする。
+related_issue: user-feedback-2026-08-15-implementation-conformance

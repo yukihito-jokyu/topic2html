@@ -1,0 +1,39 @@
+version: 1
+skills:
+  - name: impl-go-server-postgres
+    path: ../.agents/skills/impl-go-server-postgres/SKILL.md
+    capabilities:
+      - trusted-go-http-server
+      - postgresql-pgx-persistence
+      - sql-migration
+      - server-side-external-boundary
+    evidence:
+      - AGENTS.md
+      - design/decisions/DEC-ARCH-001.md
+      - design/decisions/DEC-ARCH-002.md
+      - design/decisions/DEC-ARCH-003.md
+    status: active
+  - name: impl-react-admin-ui
+    path: ../.agents/skills/impl-react-admin-ui/SKILL.md
+    capabilities:
+      - react-admin-ui
+      - same-origin-management-api-client
+      - accessibility-and-responsive-ui
+    evidence:
+      - AGENTS.md
+      - design/decisions/DEC-ARCH-001.md
+      - design/decisions/DEC-ARCH-002.md
+      - design/decisions/DEC-ARCH-003.md
+    status: active
+  - name: impl-project-verification
+    path: ../.agents/skills/impl-project-verification/SKILL.md
+    capabilities:
+      - cross-layer-contract-testing
+      - postgresql-integration-testing
+      - external-service-test-double
+      - unified-verification
+    evidence:
+      - AGENTS.md
+      - design/decisions/DEC-ARCH-003.md
+      - features/FEAT-001/design/test-strategy.md
+    status: active

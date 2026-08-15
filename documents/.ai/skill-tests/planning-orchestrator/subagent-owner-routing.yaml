@@ -1,0 +1,12 @@
+id: planning-orchestrator-subagent-owner-routing
+target_skill: planning-orchestrator
+scenario: 要件整理からFEAT-001のTask分割までを進行する。
+input_summary: 各Planning Skillの成果物Ownerが定義され、設計レビューと実装準備性レビューには独立性要件がある。
+expected:
+  - 各Owner Skillの実行をsubagentへ委譲し、完了報告を待ってから次工程へ進める。
+  - design-reviewとimplementation-readiness-reviewを設計者および相互のreviewerと異なるfresh subagentへ委譲する。
+  - reviewがpassでない場合に下流工程へ進めない。
+forbidden:
+  - Orchestratorが要件、設計、Taskを直接作成する。
+  - reviewerまたは設計者を同じagentへ再割当てする。
+related_issue: user-feedback-2026-08-15-orchestrated-subagents

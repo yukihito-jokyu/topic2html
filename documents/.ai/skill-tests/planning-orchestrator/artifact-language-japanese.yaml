@@ -1,0 +1,11 @@
+id: workflow-policy-artifact-language-japanese
+target_skill: planning-orchestrator
+scenario: 日本語で進めるプロジェクトで、要件整理からInitial DesignまでのPlanning成果物を作成する。
+input_summary: ユーザーが日本語の要件を渡し、Planning workflowの開始を依頼する。
+expected:
+  - workflow policyに従い、作成するrequirements、planning、design成果物を日本語で記述する。
+  - 外部システム名、識別子、コード、引用元の固有表記は原文を維持できる。
+forbidden:
+  - 成果物本文を英語で作成する。
+  - この言語規約を理由にL3/L4の設計判断を省略する。
+related_issue: user-feedback-2026-08-14-artifact-language

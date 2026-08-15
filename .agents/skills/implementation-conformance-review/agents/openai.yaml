@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implementation Conformance Review"
+  short_description: "実装後にissue・仕様・コード・検証結果の逸脱を独立監査する"
+  default_prompt: "実装結果が仕様と一致するか独立レビューしてください。"
