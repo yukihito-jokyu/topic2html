@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/yukihito-jokyu/topic2html/backend/repository/google"
 )
 
 func TestLoadConfig(t *testing.T) {
@@ -18,6 +20,20 @@ func TestLoadConfig(t *testing.T) {
 			name:    "valid",
 			lookup:  lookup(validEnvironment()),
 			wantURI: "https://admin.example.test/auth/google/callback",
+		},
+		{
+			name: "loopback E2E discovery endpoint",
+			configure: func(env map[string]string) {
+				env["TOPIC2HTML_GOOGLE_DISCOVERY_ENDPOINT"] = "http://127.0.0.1:8181/.well-known/openid-configuration"
+			},
+			wantURI: "https://admin.example.test/auth/google/callback",
+		},
+		{
+			name: "remote HTTP discovery endpoint",
+			configure: func(env map[string]string) {
+				env["TOPIC2HTML_GOOGLE_DISCOVERY_ENDPOINT"] = "http://provider.example.test/discovery"
+			},
+			wantError: true,
 		},
 		{
 			name:      "nil lookup",
@@ -85,6 +101,60 @@ func TestLoadConfig(t *testing.T) {
 			}
 			if !tt.wantError && cfg.OAuthCallbackURI != tt.wantURI {
 				t.Errorf("OAuthCallbackURI = %q, want %q", cfg.OAuthCallbackURI, tt.wantURI)
+			}
+			if !tt.wantError && tt.configure == nil && cfg.GoogleDiscoveryEndpoint != google.DefaultDiscoveryEndpoint {
+				t.Errorf("GoogleDiscoveryEndpoint = %q, want %q", cfg.GoogleDiscoveryEndpoint, google.DefaultDiscoveryEndpoint)
+			}
+		})
+	}
+}
+
+func TestOptionalLoopbackHTTPEndpoint(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		value     string
+		present   bool
+		want      string
+		wantError bool
+	}{
+		{
+			name: "default",
+			want: "https://accounts.google.com/.well-known/openid-configuration",
+		},
+		{
+			name:    "HTTPS endpoint",
+			value:   "https://provider.example.test/discovery",
+			present: true,
+			want:    "https://provider.example.test/discovery",
+		},
+		{
+			name:    "loopback HTTP endpoint",
+			value:   "http://localhost:8181/discovery",
+			present: true,
+			want:    "http://localhost:8181/discovery",
+		},
+		{
+			name:      "remote HTTP endpoint",
+			value:     "http://provider.example.test/discovery",
+			present:   true,
+			wantError: true,
+		},
+		{
+			name:      "query",
+			value:     "https://provider.example.test/discovery?test=true",
+			present:   true,
+			wantError: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := optionalLoopbackHTTPEndpoint(func(string) (string, bool) { return tt.value, tt.present }, "SETTING", "https://accounts.google.com/.well-known/openid-configuration")
+			if (err != nil) != tt.wantError {
+				t.Fatalf("optionalLoopbackHTTPEndpoint() error = %v, wantError %t", err, tt.wantError)
+			}
+			if !tt.wantError && got != tt.want {
+				t.Errorf("optionalLoopbackHTTPEndpoint() = %q, want %q", got, tt.want)
 			}
 		})
 	}

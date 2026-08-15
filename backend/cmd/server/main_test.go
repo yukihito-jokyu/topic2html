@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -65,6 +66,107 @@ func TestRun(t *testing.T) {
 			}
 			if started != tt.wantStarted {
 				t.Errorf("server started = %t, want %t", started, tt.wantStarted)
+			}
+		})
+	}
+}
+
+func TestLoadDotEnv(t *testing.T) {
+	missing := errors.New("missing environment file")
+	loadFile := func(results map[string]error) func(string) error {
+		return func(filename string) error { return results[filename] }
+	}
+	tests := []struct {
+		name    string
+		results map[string]error
+		wantErr bool
+	}{
+		{
+			name: "root environment file",
+			results: map[string]error{
+				"../.env": nil,
+			},
+		},
+		{
+			name: "working directory environment file",
+			results: map[string]error{
+				"../.env": os.ErrNotExist,
+				".env":    nil,
+			},
+		},
+		{
+			name: "no environment file",
+			results: map[string]error{
+				"../.env": os.ErrNotExist,
+				".env":    os.ErrNotExist,
+			},
+		},
+		{
+			name: "unreadable environment file",
+			results: map[string]error{
+				"../.env": missing,
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := loadDotEnv(loadFile(tt.results))
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("loadDotEnv() error = %v, wantErr %t", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestStartWithEnvironmentLoad(t *testing.T) {
+	originalLoadEnvironment := loadEnvironment
+	originalRunServer := runServer
+	originalExitProcess := exitProcess
+	originalLogWriter := serverLogWriter
+	t.Cleanup(func() {
+		loadEnvironment = originalLoadEnvironment
+		runServer = originalRunServer
+		exitProcess = originalExitProcess
+		serverLogWriter = originalLogWriter
+	})
+
+	tests := []struct {
+		name               string
+		loadEnvironmentErr error
+		runErr             error
+		wantExit           bool
+	}{
+		{
+			name:               "environment file error",
+			loadEnvironmentErr: errors.New("environment file error"),
+			wantExit:           true,
+		},
+		{
+			name:     "server error",
+			runErr:   errors.New("server error"),
+			wantExit: true,
+		},
+		{
+			name: "server stops cleanly",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var log bytes.Buffer
+			exitCode := -1
+			loadEnvironment = func() error { return tt.loadEnvironmentErr }
+			runServer = func(LookupEnv, func(*http.Server) error) error { return tt.runErr }
+			exitProcess = func(code int) { exitCode = code }
+			serverLogWriter = &log
+
+			start()
+
+			if tt.wantExit && exitCode != 1 {
+				t.Errorf("exit code = %d, want 1", exitCode)
+			}
+			if !tt.wantExit && exitCode != -1 {
+				t.Errorf("exit code = %d, want no exit", exitCode)
 			}
 		})
 	}
