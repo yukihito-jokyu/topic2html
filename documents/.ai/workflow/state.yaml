@@ -9,9 +9,9 @@ features:
     design: completed
     design_review: completed
     implementation_readiness_review: completed
-    implementation_readiness_review_result: "2026-08-15: 画面設計仕様書を含む更新後設計を独立した実装者視点で監査し、画面状態・操作・API対応・アクセシビリティ・responsive・秘密情報非露出を含めpass"
+    implementation_readiness_review_result: "2026-08-15: handler/usecase/repository/domainとcmdの責務・依存、設定とSecretの注入、Gin境界、構造検証、OAuth・DB・migration・session・CSRF・Frontend境界を独立監査しpass"
     human_design_review: approved
-    human_design_review_approval: "2026-08-15: 画面設計仕様書、再実施したdesign-reviewおよびimplementation-readiness-reviewを含む更新後の詳細設計を利用者が承認"
+    human_design_review_approval: "2026-08-15: 利用者がhandler/usecase/repository/domainへのBackend構造変更後に、実装対応を明示指示"
     task_breakdown: completed
     implementation_handoff: ready
 implementation_ready_features:

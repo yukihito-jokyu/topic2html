@@ -2,7 +2,30 @@
 
 ## Migration
 
-Migration runnerだけが適用する。`001_admin_auth_schema`は`schema_migrations`への適用記録、以下の二表、制約、indexを一つのDB transactionで作成する。失敗時は全てrollbackし、適用記録を残さない。記録済みversionは再適用しない。中断後は未記録versionを最初から再実行する。
+Migration runnerだけが適用する。migration versionは昇順で適用し、`001_admin_auth_schema`は先行migrationを持たない。runnerは各migration transactionで、以下のmetadata tableを作成または参照する。
+
+```sql
+-- migration適用記録を保持する。migration runnerだけが読書きする。
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version TEXT NOT NULL PRIMARY KEY,
+  applied_at TIMESTAMPTZ NOT NULL
+);
+```
+
+`schema_migrations.version`はmigration識別子（このFeatureでは`001_admin_auth_schema`）であり、同じversionの再適用を防ぐ。一つのmigrationの適用順は次のとおりとする。
+
+1. transactionを開始する。
+2. 上記DDLでmetadata tableを作成または参照し、対象versionの適用記録を確認する。記録済みならmigration DDLを実行せずcommitする。
+3. 未記録なら、対象migrationのtable、制約、indexをすべて作成する。
+4. すべて成功した後にだけ、次のINSERTで`schema_migrations`へ対象versionと適用時刻を記録し、同じtransactionをcommitする。
+
+```sql
+-- 対象migrationのDDLが全て成功した後にだけ適用済みとして記録する。
+INSERT INTO schema_migrations (version, applied_at)
+VALUES ('001_admin_auth_schema', CURRENT_TIMESTAMP);
+```
+
+失敗時はmetadata tableの初回作成、対象DDL、適用記録を含めて全てrollbackし、適用記録を残さない。中断後は未記録versionを最初から再実行する。`001_admin_auth_schema`はこの順でmetadata table、以下の二表、制約、index、適用記録を一つのDB transactionで作成する。
 
 期限切れ・無効化済み行の削除は認証と別の保守操作とし、期限後24時間を過ぎたOAuth transaction、失効または絶対期限後24時間を過ぎたsessionだけを対象にする。削除失敗は認証を許可する理由にしない。
 

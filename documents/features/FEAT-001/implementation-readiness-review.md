@@ -2,48 +2,47 @@
 
 ## 対象と独立性
 
-`features/FEAT-001/{requirements.md,design.md,design/**,decisions/**,design-review.md}`、正規要件、Initial Design、承認済みDecision、workflow stateを、設計者および`design-review`担当者とは異なるfresh reviewerとして実装者視点で監査した。今回追加された`design/screen-specification.md`を、HTTP・operation・操作列・検証資料と反証的に照合した。本レビューが変更した成果物は本ファイルだけである。
+`requirements.md`、`design.md`、`design/**`、`decisions/**`、`design-review.md`、正規要件、Initial Design、承認済みDecisionを、設計者およびdesign-review担当者とは異なる実装者視点で監査した。本レビューが変更する成果物は本ファイルだけである。
 
-## 実装者が依存する確定済み契約
+監査対象は、利用者が明示したBackendの`handler`／`usecase`／`repository`／`domain`分離と、既存のOAuth、PostgreSQL、HTTP、session、CSRF、Frontend、秘密情報境界を後退させずに構造移行できるかである。
 
-- Google OAuth 2.0 Authorization Code FlowとOIDC ID Token検証をServer側で行い、`email_verified=true`のメールとServer限定の許可メールを完全一致で照合する。
-- OAuth transactionは10分・一回使用、管理sessionは絶対8時間・アイドル30分である。cookieにはopaqueな参照値だけを置き、PostgreSQLのServer保護記録を正本とする。
-- cookie、CSRF header、認証失敗・CSRF失敗・保護記録障害の応答、各認証operationのmethod・URI・入力・成功・失敗はHTTP契約で固定されている。
-- 環境ごとの単一trusted app originと固定callback、環境専用OAuth Client、Server限定のSecret、Google test doubleを使う。具体値の配置・Google Console登録はリリース前提条件であり、未設定・不整合では認証endpointを有効化しない。
+## 実装者が依存できる確定済み契約
+
+- `backend/`は独立Go moduleであり、`cmd`、`handler`、`usecase`、`repository`、`domain`を明示配置する。`cmd`だけが環境変数・Secret storeから全Server設定を読み、存在・形式・origin/callback整合を検証して、各層をconstructorで組み立てる。
+- `handler`はGinのroute、middleware、request/response、cookie、redirect変換だけを担い、`usecase`を呼ぶ。`usecase`は`domain`と自ら定義するportだけに依存し、repository実装、Gin、SQL、Google、環境設定を参照しない。`repository`はportを実装して外部I/Oを閉じ込め、環境変数・Secret storeを直接読まない。`domain`は外部層に依存しない。
+- Google OAuth 2.0 Authorization Code FlowとOIDC ID TokenをServer側で検証し、`email_verified=true`のメールをServer限定の許可メール1件と完全一致で照合する。Authorization Requestのscopeは`openid email`に固定する。
+- OAuth transactionは10分・一回使用、管理sessionは絶対8時間・idle 30分であり、opaque参照値と同期CSRF tokenをServer保護記録に保持する。HTTP operation、cookie、CSRF header、認証／CSRF／保護記録障害のwire形式、画面状態・操作が定義済みである。
+- `schema_migrations`、`admin_oauth_transactions`、`admin_sessions`のDDL相当、`001_admin_auth_schema`のtransaction内での作成・version記録・rollback・再適用判定、および実PostgreSQL検証の期待結果が定義済みである。
+- Browser OAuth E2EはTLSを持つloopback trusted app originとGoogle test doubleを使用し、`__Host-`/`Secure` cookieを緩和しない。HTTP loopbackは設定検証に限る。
 
 ## 項目別監査
 
-| 項目 | 結果 | 根拠 |
+| 項目 | 結果 | 根拠・確認内容 |
 | --- | --- | --- |
-| 関係DB・migration | 合格 | `database-schema.md`が`admin_oauth_transactions`と`admin_sessions`のcolumn、型、NULL、主キー・UNIQUE・CHECK・index、失効判定を定義する。`001_admin_auth_schema`の一括transaction、適用記録、再適用防止、失敗rollback、中断後の再実行、期限後24時間の保守削除対象も明記されている。 |
-| `oauth_start` wire contract | 合格 | `POST /admin/auth/google/start`、form入力、許可する`return_path`、Origin検査、成功時のGoogle Authorization Endpointへの`303`とtransaction cookie、失敗時のtransaction cookieを発行・置換しない固定`/admin/login?reason=failed`への`303`を`http-contract.md`とoperation資料が定義している。Browser formの失敗をJSONや400/403/503で返さないことも明確である。 |
-| `oauth_callback` wire contract | 合格 | `GET /auth/google/callback`、queryとtransaction cookie、成功・失敗時の303先、cookie発行・削除、固定の失敗理由、TokenをURL・表示・ログへ出さない条件が明記されている。 |
-| 管理session・read・mutation・logoutのwire contract | 合格 | bootstrapの200 JSON schema、mutation/read guardの401/403/503、CSRF header名・値形式、logoutの有効・匿名・CSRF不正・Origin不正時のcookie副作用が、HTTP契約と各operation資料で一致している。 |
-| 管理認証画面 | 合格 | `screen-specification.md`が、`/admin`初期化、ログイン案内、認証済み、認証基盤障害の対象・到達／退出・表示・操作を定義する。各状態は`oauth_start`、callback、bootstrap、read/mutation guard、logoutへ対応付けられ、`200`、`401`、`403`、`503`時のtoken破棄・再ログイン・再初期化・再試行が、操作列を含む関連資料と矛盾しない。callback専用画面を持たず、form POSTから`303` document navigationでGoogleまたは固定失敗案内へ遷移する契約も実装可能である。 |
-| 画面の非機能制約 | 合格 | ログイン・再試行・logoutのキーボード操作、状態変化の支援技術向け通知、狭い画面幅での横スクロールなしの主操作、token・cookie・OAuth値・許可メール・Secret・内部障害詳細を画面、URL、永続Browser保存、通知へ出さない制約が明示されている。外観・component構成のみを実装へ委譲しており、安全性・操作性の契約は未決定ではない。 |
-| 状態変更・transaction・cleanup | 合格 | 開始時の旧transaction無効化と新規INSERT、callbackの条件付き一回使用確保、Google呼出しをDB transaction外に置くこと、session INSERT失敗時の収束、失効session更新、logout例外、期限後保守削除が定義されている。競合時の更新0件は失敗とし、外部失敗でtransactionを復活させずretryしない。 |
-| 設定・秘密値・外部境界 | 合格 | `runtime-configuration.md`がorigin/callbackの構成規則、環境専用Client、Secretと保護鍵のServer限定、設定所有、起動時検証、Google Console同期責任を定義する。Google Token/JWKS/discoveryはServer限定で10秒timeout・retryなし、異常時は認証失敗としてfail closed、CI/E2Eはtest doubleを使う。 |
-| 検証責務 | 合格 | `test-strategy.md`がunit、実PostgreSQL integration、HTTP契約、Google test doubleを用いるE2E、隔離境界との責務分担を定義する。migration rollback、競合、cookie、Origin/CSRF、503時の不変性、再使用、秘密値非露出まで対象化されている。 |
+| 4層・composition root | 合格 | `DEC-ARCH-003`、`design.md`、`architecture-boundaries.md`、`test-strategy.md`が物理配置、責務、許可依存・禁止依存を一致して定める。`cmd`だけが設定読取り・起動時検証・constructor注入を行い、repositoryは注入済みのSecretを使うだけで直接読取りをしない。 |
+| 構造検証 | 合格 | `domain`の外部依存、`usecase`のGin／PostgreSQL／Google／環境設定／repository実装依存、`handler → repository`、`repository → handler`、`cmd`以外の設定・Secret読取りを検出する契約がある。Gin handlerのwire変換はHTTP契約テストで検証する。 |
+| HTTP／画面・Gin境界 | 合格 | `http-contract.md`、operation資料、`screen-specification.md`が、method、URI、入力、status、JSON、redirect、cookie、header、副作用、初期化、ログイン、callback後、logout、401/403/503、アクセシビリティ、responsive、秘密情報非露出を対応付ける。handlerがHTTP固有の変換だけを担当するため、usecaseへGin型を渡さない実装が可能である。 |
+| OAuth、session、CSRF、cleanup | 合格 | `session-contract.md`とoperation資料が期限、一回使用、条件付き消費、Origin/CSRF、idle更新、logout例外、Google呼出しをDB transaction外に置くこと、失敗時にtransaction/sessionを復活させないことを定める。 |
+| PostgreSQL・migration・repository | 合格 | `database-schema.md`がmetadata table、migration version、DDL／記録順、失敗時rollback、再適用防止、保護記録二表のcolumn・制約・index、operation別transaction/access mapを定める。SQL・pool・transaction型をusecaseへ出さないport契約と整合する。 |
+| 設定・秘密値・Google境界 | 合格 | `runtime-configuration.md`がcmdによるfail-closed検証、固定callback、constructor注入、10秒timeout、retryなし、test double、秘密値非露出を定める。Client Secret・保護鍵・DB接続情報をusecaseの公開入出力へ入れないため、層境界と安全要件が矛盾しない。 |
+| Frontend・外部境界 | 合格 | Frontendは同一originのHTTP契約だけに依存し、Backend内部、DB、Google、Secretを参照しない。生成HTMLの別origin結合検証はFEAT-005へ明確に分離されている。 |
+| 検証責務 | 合格 | unit、実PostgreSQL integration、Gin HTTP契約、TLS loopbackのGoogle test double E2E、境界・構造検証の分担が具体化され、fixtureの秘密値非露出も定められている。 |
 
-## 実装への委譲の確認
+## 実装への委譲の検出
 
-file path、symbol、画面コンポーネントの局所構造だけが実装領域へ委譲されている。永続化、wire、設定、外部境界、安全性、検証、画面の状態・操作に関わる契約を「実装時に決める」とする記述は確認されなかった。
+package、file、symbol、画面component、構造検査の具体的な実装手段だけが実装領域へ適切に委譲されている。一方、4層の物理配置・責務・依存方向、設定の所有、HTTP wire、cookie属性、CSRF、DB transaction・cleanup、外部通信、TLS E2E前提は確定済みである。挙動・永続化・wire・設定・安全性を実装者が再設計すべき箇所は検出されなかった。
 
-`DEC-FEAT-002`で承認された選択肢Aは、具体の本番ドメインをソースコードへ固定するDecisionではなく、環境設定として固定originとcallbackを登録・照合する運用契約である。具体値の未投入は本番リリースを許可しない前提条件であり、実装者が方式を再設計する未解決Decisionではない。
+## 残存リスク
 
-## 残存する実施前提
-
-- 配置運用責任者は、リリース前に環境ごとのorigin・callback URI・Google Console登録・Secretを整合させる。未設定または不一致なら起動時検証で認証endpointを提供しない。
-- FEAT-005は、生成HTML隔離originに資格情報が流通しない結合検証を所有する。FEAT-001は信頼済み側から資格情報を渡さない境界テストまでを所有する。
-
-これらは実装仕様の不足ではなく、承認済み設計が定めた配置・Feature境界上の実施条件である。
+- TLS loopbackの証明書発行・信頼方法、test doubleの具体的な起動方法、構造検査の具体的手段は実装選択である。`__Host-`/`Secure` cookieを緩和せず、指定のE2Eと構造検査を実行して受け入れる。
+- Google Consoleへの環境別origin／callback登録とSecret注入はDEC-FEAT-002どおり配置運用責任者のリリース前提である。通常CIは実Google資格情報を用いない。
 
 ## 総合判定
 
 **pass**
 
-実装者は、追加の製品・業務・公開・セキュリティ判断をせずにFEAT-001へ着手できる。DDL/migration、operation別wire contract、状態変更と外部呼出しのtransaction・cleanup、設定とGoogle境界、テスト責務に加え、管理認証画面の状態・操作・API対応・エラー動作・アクセシビリティ・responsive・秘密情報非露出が設計資料間で追跡可能であり、未解決のL3/L4事項はない。
+`handler`／`usecase`／`repository`／`domain`と`cmd`の分離は、設定・Secretの所有、依存方向、構造検証まで実装可能な粒度で確定している。Gin HTTP変換、OAuth、PostgreSQL、migration、session、CSRF、Frontend、秘密情報境界の契約もこの分離と整合し、構造移行のために新たな製品・業務・安全性判断をする必要はない。
 
 ## 次ゲート
 
-利用者による詳細設計レビュー・承認。その承認後にだけTask分割へ進む。
+利用者による更新後の詳細設計の明示承認。承認前にTask分割・implementation handoffへ進んではならない。承認後は`task-breakdown`へ委譲する。
