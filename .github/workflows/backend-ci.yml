@@ -1,0 +1,57 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".agents/skills/impl-project-verification/scripts/check-backend-coverage.sh"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".agents/skills/impl-project-verification/scripts/check-backend-coverage.sh"
+      - ".github/workflows/backend-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Go を設定
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.5"
+          cache-dependency-path: backend/go.sum
+
+      - name: Go module を検証
+        working-directory: backend
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Go format を検証
+        working-directory: backend
+        run: test -z "$(gofmt -l $(find . -name '*.go' -not -path './vendor/*'))"
+
+      - name: golangci-lint を実行
+        uses: golangci/golangci-lint-action@v9
+        with:
+          working-directory: backend
+
+      - name: Go test を実行
+        working-directory: backend
+        run: go test ./...
+
+      - name: Backend coverage を検証
+        working-directory: backend
+        run: bash ../.agents/skills/impl-project-verification/scripts/check-backend-coverage.sh
+
+      - name: Backend をビルド
+        working-directory: backend
+        run: go build -o /tmp/topic2html-server ./cmd/server
