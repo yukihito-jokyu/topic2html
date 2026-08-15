@@ -76,6 +76,36 @@ type OAuthService interface {
 	Callback(context.Context, CallbackInput) (CallbackOutput, error)
 }
 
+// SessionBootstrapOutputは管理画面初期化の安全な出力です。
+type SessionBootstrapOutput struct {
+	Authenticated bool
+	CSRFToken     string
+}
+
+// GuardDecisionは管理操作ガードの安全な判定結果です。
+type GuardDecision uint8
+
+const (
+	GuardAllowed GuardDecision = iota + 1
+	GuardUnauthenticated
+	GuardForbidden
+)
+
+// SessionInputはsession cookieとHTTP保護入力です。
+type SessionInput struct {
+	SessionReference string
+	Origins          []string
+	CSRFToken        string
+}
+
+// AdminSessionServiceはsession初期化、logout、後続管理操作の共通ガードです。
+type AdminSessionService interface {
+	Bootstrap(context.Context, string) (SessionBootstrapOutput, error)
+	AuthorizeRead(context.Context, string) (GuardDecision, error)
+	Logout(context.Context, SessionInput) (GuardDecision, error)
+	RunAuthorizedAdminStateChange(context.Context, SessionInput, AdminStateChangeOperation) (GuardDecision, error)
+}
+
 // ProtectedRecordStoreは保護記録の永続化境界です。
 type ProtectedRecordStore interface {
 	ReplaceOAuthTransaction(context.Context, auth.Hash, auth.OAuthTransaction) error
@@ -83,7 +113,7 @@ type ProtectedRecordStore interface {
 	CreateAdminSession(context.Context, auth.AdminSession) error
 	FindAdminSession(context.Context, auth.Hash) (auth.AdminSession, bool, error)
 	RevokeAdminSession(context.Context, auth.Hash, auth.Time) (bool, error)
-	RunAdminStateChange(context.Context, auth.Hash, auth.Time, AdminStateChangeOperation) (bool, error)
+	RunAuthorizedAdminStateChange(context.Context, auth.Hash, string, auth.Hash, auth.Time, AdminStateChangeOperation) (bool, error)
 	DeleteExpiredProtectedRecords(context.Context, auth.Time) error
 }
 

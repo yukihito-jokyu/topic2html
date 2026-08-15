@@ -54,7 +54,7 @@ func (*oauthTestStore) FindAdminSession(context.Context, domainauth.Hash) (domai
 func (*oauthTestStore) RevokeAdminSession(context.Context, domainauth.Hash, domainauth.Time) (bool, error) {
 	return false, nil
 }
-func (*oauthTestStore) RunAdminStateChange(context.Context, domainauth.Hash, domainauth.Time, AdminStateChangeOperation) (bool, error) {
+func (*oauthTestStore) RunAuthorizedAdminStateChange(context.Context, domainauth.Hash, string, domainauth.Hash, domainauth.Time, AdminStateChangeOperation) (bool, error) {
 	return false, nil
 }
 func (*oauthTestStore) DeleteExpiredProtectedRecords(context.Context, domainauth.Time) error {
@@ -583,6 +583,25 @@ func TestServiceCallback(t *testing.T) {
 					EmailVerified: true,
 				}
 				store.createErr = errors.New("session")
+			},
+			wantError: true,
+			wantCall:  true,
+		},
+		{
+			name: "session csrf seal failure",
+			input: CallbackInput{
+				TransactionReference: "tx",
+				State:                "state",
+				Code:                 "code",
+			},
+			configure: func(store *oauthTestStore, provider *oauthTestProvider, security *oauthTestSecurity, now time.Time) {
+				store.consume, store.found = validOAuthRecord(now), true
+				security.openValue = []byte("verifier")
+				provider.identity = domainauth.VerifiedIdentity{
+					Email:         "admin@example.test",
+					EmailVerified: true,
+				}
+				security.sealErr = errors.New("seal")
 			},
 			wantError: true,
 			wantCall:  true,

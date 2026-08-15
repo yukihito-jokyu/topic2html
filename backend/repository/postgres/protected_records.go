@@ -123,7 +123,7 @@ func (s *Store) CreateAdminSession(ctx context.Context, session auth.AdminSessio
 		return err
 	}
 	defer func() { _ = transaction.Rollback(ctx) }()
-	_, err = transaction.Exec(ctx, `INSERT INTO admin_sessions (id, reference_hash, authorized_email, csrf_token_hash, created_at, last_mutation_at, absolute_expires_at, idle_expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, session.ID, session.ReferenceHash, session.AuthorizedEmail, session.CSRFTokenHash, session.CreatedAt, session.LastMutationAt, session.AbsoluteExpiresAt, session.IdleExpiresAt)
+	_, err = transaction.Exec(ctx, `INSERT INTO admin_sessions (id, reference_hash, authorized_email, csrf_token_hash, csrf_token_ciphertext, created_at, last_mutation_at, absolute_expires_at, idle_expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, session.ID, session.ReferenceHash, session.AuthorizedEmail, session.CSRFTokenHash, session.CSRFTokenCiphertext, session.CreatedAt, session.LastMutationAt, session.AbsoluteExpiresAt, session.IdleExpiresAt)
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (s *Store) FindAdminSession(ctx context.Context, referenceHash auth.Hash) (
 	}
 	defer func() { _ = transaction.Rollback(ctx) }()
 	var session auth.AdminSession
-	err = transaction.QueryRow(ctx, `SELECT id, reference_hash, authorized_email, csrf_token_hash, created_at, last_mutation_at, absolute_expires_at, idle_expires_at, revoked_at FROM admin_sessions WHERE reference_hash = $1`, referenceHash).Scan(&session.ID, &session.ReferenceHash, &session.AuthorizedEmail, &session.CSRFTokenHash, &session.CreatedAt, &session.LastMutationAt, &session.AbsoluteExpiresAt, &session.IdleExpiresAt, &session.RevokedAt)
+	err = transaction.QueryRow(ctx, `SELECT id, reference_hash, authorized_email, csrf_token_hash, csrf_token_ciphertext, created_at, last_mutation_at, absolute_expires_at, idle_expires_at, revoked_at FROM admin_sessions WHERE reference_hash = $1`, referenceHash).Scan(&session.ID, &session.ReferenceHash, &session.AuthorizedEmail, &session.CSRFTokenHash, &session.CSRFTokenCiphertext, &session.CreatedAt, &session.LastMutationAt, &session.AbsoluteExpiresAt, &session.IdleExpiresAt, &session.RevokedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return auth.AdminSession{}, false, nil
 	}
@@ -156,8 +156,8 @@ func (s *Store) RevokeAdminSession(ctx context.Context, referenceHash auth.Hash,
 	return s.updateSession(ctx, `UPDATE admin_sessions SET revoked_at = $1 WHERE reference_hash = $2 AND revoked_at IS NULL AND absolute_expires_at > $1 AND idle_expires_at > $1`, now, referenceHash)
 }
 
-// RunAdminStateChangeは更新を同一transactionで実行します。
-func (s *Store) RunAdminStateChange(ctx context.Context, referenceHash auth.Hash, now auth.Time, operation authusecase.AdminStateChangeOperation) (bool, error) {
+// RunAuthorizedAdminStateChangeは認可済みemailとCSRF hashを条件に業務更新を実行します。
+func (s *Store) RunAuthorizedAdminStateChange(ctx context.Context, referenceHash auth.Hash, allowedEmail string, csrfTokenHash auth.Hash, now auth.Time, operation authusecase.AdminStateChangeOperation) (bool, error) {
 	if operation == nil {
 		return false, errors.New("admin state change operation is required")
 	}
@@ -166,7 +166,7 @@ func (s *Store) RunAdminStateChange(ctx context.Context, referenceHash auth.Hash
 		return false, err
 	}
 	defer func() { _ = transaction.Rollback(ctx) }()
-	tag, err := transaction.Exec(ctx, `UPDATE admin_sessions SET last_mutation_at = $1, idle_expires_at = LEAST($1 + INTERVAL '30 minutes', absolute_expires_at) WHERE reference_hash = $2 AND revoked_at IS NULL AND absolute_expires_at > $1 AND idle_expires_at > $1`, now, referenceHash)
+	tag, err := transaction.Exec(ctx, `UPDATE admin_sessions SET last_mutation_at = $1, idle_expires_at = LEAST($1 + INTERVAL '30 minutes', absolute_expires_at) WHERE reference_hash = $2 AND authorized_email = $3 AND csrf_token_hash = $4 AND csrf_token_ciphertext IS NOT NULL AND revoked_at IS NULL AND absolute_expires_at > $1 AND idle_expires_at > $1`, now, referenceHash, allowedEmail, csrfTokenHash)
 	if err != nil {
 		return false, err
 	}

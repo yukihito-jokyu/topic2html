@@ -220,20 +220,25 @@ func (s *Service) createAdminSession(ctx context.Context, email string) (string,
 	if err != nil {
 		return "", err
 	}
+	csrfTokenCiphertext, err := s.security.Seal([]byte(csrfToken))
+	if err != nil {
+		return "", err
+	}
 	sessionID, err := s.randomUUID()
 	if err != nil {
 		return "", err
 	}
 	now := s.clock.Now()
 	if err := s.store.CreateAdminSession(ctx, auth.AdminSession{
-		ID:                sessionID,
-		ReferenceHash:     s.security.Hash([]byte(reference)),
-		AuthorizedEmail:   email,
-		CSRFTokenHash:     s.security.Hash([]byte(csrfToken)),
-		CreatedAt:         now,
-		LastMutationAt:    now,
-		AbsoluteExpiresAt: now.Add(auth.SessionAbsoluteLifetime),
-		IdleExpiresAt:     now.Add(auth.SessionIdleLifetime),
+		ID:                  sessionID,
+		ReferenceHash:       s.security.Hash([]byte(reference)),
+		AuthorizedEmail:     email,
+		CSRFTokenHash:       s.security.Hash([]byte(csrfToken)),
+		CSRFTokenCiphertext: csrfTokenCiphertext,
+		CreatedAt:           now,
+		LastMutationAt:      now,
+		AbsoluteExpiresAt:   now.Add(auth.SessionAbsoluteLifetime),
+		IdleExpiresAt:       now.Add(auth.SessionIdleLifetime),
 	}); err != nil {
 		return "", err
 	}
