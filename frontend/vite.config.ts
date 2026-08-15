@@ -1,6 +1,10 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
 const useDevelopmentTLS = process.env.TOPIC2HTML_DEV_TLS === "1";
+const certificateDirectory = fileURLToPath(
+	new URL("../.certs/", import.meta.url),
+);
 
 export default defineConfig({
 	resolve: {
@@ -14,8 +18,8 @@ export default defineConfig({
 		strictPort: true,
 		https: useDevelopmentTLS
 			? {
-					key: "../.certs/topic2html-dev-key.pem",
-					cert: "../.certs/topic2html-dev-cert.pem",
+					key: `${certificateDirectory}topic2html-dev-key.pem`,
+					cert: `${certificateDirectory}topic2html-dev-cert.pem`,
 				}
 			: undefined,
 		proxy: {
