@@ -15,6 +15,7 @@ description: topic2htmlの実装後に、issueまたはTask、要件、承認済
 - `documents/features/{feature_id}/implementation-handoff.yaml`
 - 対象Featureのrequirements、design、decisions、design-review、implementation-readiness-review
 - 実装diff、変更ファイル、テスト・lint・buildの実行結果
+- backendを変更した場合は、`task backend:coverage`またはTask規約で明記された同等スクリプトと、その実行結果
 - 親`AGENTS.md`、現行コード、関連する`impl-*` Skill
 
 issueが存在しない場合はTaskを一次根拠にし、その旨を報告する。外部trackerの取得権限がない場合、与えられたissue本文以上を推測しない。
@@ -25,7 +26,8 @@ issueが存在しない場合はTaskを一次根拠にし、その旨を報告�
 2. diffと変更後コードを読み、対象外機能、未承認dependency、公開contract、DB migration、認可・秘密情報・隔離境界の逸脱を探す。
 3. 受け入れ基準ごとに、実装箇所と適切なunit / integration / HTTP / E2E検証の証拠を確認する。
 4. 正常系だけでなく、設計上の失敗経路、rollback、未認可、外部障害、秘密情報非露出を確認する。
-5. `pass`、`changes_required`、`return_to_planning`、`human_decision_required`のいずれかを根拠とともに報告する。コード・設計成果物を編集しない。
+5. backendを変更した場合は、実装者と同じカバレッジ検証入口が存在することを確認し、freshなreviewerとして実行する。table-driven testが必要な複数caseの検証を単発testへ退行させていないかも確認する。
+6. `pass`、`changes_required`、`return_to_planning`、`human_decision_required`のいずれかを根拠とともに報告する。コード・設計成果物を編集しない。
 
 ## Gate
 
@@ -35,6 +37,7 @@ issueが存在しない場合はTaskを一次根拠にし、その旨を報告�
 - 承認済みの要件・設計・Decisionと矛盾する挙動、公開contract、永続化、認可、秘密情報の扱いがある。
 - 実装が対象外Featureの業務契約や隔離境界を先取りしている。
 - 実行済みとされた検証の証拠がない、または失敗を隠している。
+- backend変更時に共通カバレッジ検証入口が存在しない、reviewerが実行できない、または100%未満・非0終了である。
 
 ## Independence
 

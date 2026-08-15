@@ -1,0 +1,14 @@
+id: impl-go-server-postgres-gin-clean-architecture-boundary
+target_skill: impl-go-server-postgres
+scenario: 承認済みDEC-ARCH-003に従い、初期のGo ServerをGin採用・Backend/Frontend分離・Clean Architectureへ移行する。
+input_summary: "`backend/`を独立Go moduleにし、Gin v1.12.0、PostgreSQL、Google OAuth境界を含むServer実装を変更するTaskがimplementation_readyである。"
+expected:
+  - "`backend/`をGo実装と独立Go moduleの境界、`frontend/`をNode.js/TypeScript資産の境界として扱う。"
+  - "GinをHTTP routing、middleware、request/response変換のadapterに限定する。"
+  - "DomainをGin、HTTP、PostgreSQL、環境変数から独立させ、Applicationの外部I/Oをportで表現する。"
+  - "実行入口で外側adapterとApplicationを組み立てる。"
+forbidden:
+  - "標準`net/http`を承認済みのHTTP frameworkとして扱う。"
+  - "Gin、PostgreSQL、Google、環境設定をDomainまたはApplicationへ直接依存させる。"
+  - "FrontendからBackend内部、PostgreSQL、秘密情報へ直接依存させる。"
+related_issue: implementation-preflight-2026-08-15-dec-arch-003-skill-drift

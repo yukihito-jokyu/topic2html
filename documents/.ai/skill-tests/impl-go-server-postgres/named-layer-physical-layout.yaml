@@ -1,0 +1,16 @@
+id: impl-go-server-postgres-named-layer-physical-layout
+target_skill: impl-go-server-postgres
+scenario: 承認済み設計に従い、既存Backendをhandler、usecase、repository、domainとcmd composition rootの物理ディレクトリへ再編する。
+input_summary: "implementation_readyのTaskが、Gin handler、application operation、PostgreSQL adapterを持つ`backend/`をnamed layerへ移行するよう要求している。"
+expected:
+  - "`backend/handler/`にGin routing、middleware、HTTP変換を置き、repositoryを直接参照させない。"
+  - "`backend/usecase/`にoperationと外部I/O portを置き、domain以外へ直接依存させない。"
+  - "`backend/repository/`にPostgreSQL・外部Server・設定adapterを置き、usecase portを実装する。"
+  - "`backend/domain/`をframework、HTTP、DB、環境変数から独立させる。"
+  - "`backend/cmd/`だけで設定・Secretを読み、constructor injectionにより全層を組み立てる。"
+  - "禁止依存とcmd以外の設定・Secret読取りを検出する構造検証を追加または更新する。"
+forbidden:
+  - "抽象的なClean Architectureだけを理由に、承認済みのhandler/usecase/repository/domainの物理ディレクトリ名を維持しない。"
+  - "handlerからrepositoryへ、usecaseからrepositoryへ、repositoryからhandlerへ、domainから他層へ依存させる。"
+  - "cmd以外の層で環境変数またはSecretを直接読み取る。"
+related_issue: implementation-preflight-2026-08-15-named-layer-implementation-drift

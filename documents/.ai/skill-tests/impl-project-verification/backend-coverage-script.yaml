@@ -1,0 +1,12 @@
+id: impl-project-verification-backend-coverage-script
+target_skill: impl-project-verification
+scenario: Backendの自動検証を整備し、100%カバレッジを共通スクリプトで強制する。
+input_summary: "承認済みcontractのBackend testを追加し、実装者と独立reviewerが同じカバレッジ検証入口を使う必要がある。"
+expected:
+  - "複数caseを持つGo testをtable-driven testで追加または更新する。"
+  - "`task backend:coverage`またはTask規約で明記された同等スクリプトが100%未達・計測失敗・test失敗で非0終了する。"
+  - "実装者と独立reviewerの双方が同じ入口を実行できる。"
+forbidden:
+  - "カバレッジ閾値を手作業の確認に委ねる。"
+  - "本番資格情報または実外部サービスをカバレッジ検証へ必要とする。"
+related_issue: user-feedback-2026-08-15-backend-coverage-script

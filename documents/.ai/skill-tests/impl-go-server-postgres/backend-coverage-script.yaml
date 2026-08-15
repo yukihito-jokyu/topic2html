@@ -1,0 +1,14 @@
+id: impl-go-server-postgres-backend-coverage-script
+target_skill: impl-go-server-postgres
+scenario: Backend実装にtable-driven Go testと100%カバレッジを要求するTaskを実装する。
+input_summary: "実装者と独立reviewerの双方が同じリポジトリ内の検証入口を実行し、Backendのテストカバレッジ100%を確認する必要がある。"
+expected:
+  - "複数caseを持つGo testをtable-driven testとして実装する。"
+  - "`task backend:coverage`またはTask規約で明記された同等スクリプトを作成または更新する。"
+  - "スクリプトがbackendの対象範囲を計測し、100%未達、計測失敗、test失敗で非0終了する。"
+  - "実装者が共通カバレッジ検証入口を実行して結果を報告する。"
+forbidden:
+  - "カバレッジ結果を目視確認だけにして、機械的に失敗させない。"
+  - "reviewer専用または実装者専用のカバレッジ入口を作る。"
+  - "複数の成功・失敗caseを単発testへ退行させる。"
+related_issue: user-feedback-2026-08-15-backend-coverage-script

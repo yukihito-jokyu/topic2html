@@ -46,6 +46,8 @@ description: topic2htmlのGo、React、PostgreSQL、外部境界を横断する�
 - 既存のGo、frontend、E2E、Task構成へ従い、テストを対象責務の近くへ置く。
 - test doubleとfixtureは本番接続先・実資格情報を必要としない形で管理する。
 - E2EがGoogle/Codexや生成HTML隔離originを扱う場合、対象Featureが所有する承認済み境界を超えない。
+- Go testは、複数の入力・期待結果・失敗経路を持つ対象をtable-driven testで記述する。
+- Backendを対象にする場合、実装者と独立reviewerが同じ`task backend:coverage`またはTask規約で明記された同等スクリプトを実行できるようにする。スクリプトは対象範囲の100%未達、計測失敗、test失敗で非0終了にする。
 
 ## Autonomous Decisions
 
@@ -67,11 +69,13 @@ description: topic2htmlのGo、React、PostgreSQL、外部境界を横断する�
 3. 正常系だけでなく、期限切れ、再使用、DB障害、外部失敗、未認可、cross-originなどcontract上の失敗経路を検証する。
 4. fixture、URL、HTML、ログに実Secret・認可token・許可メールがないことを確認する。
 5. 統一Taskと各toolchainの強い検証を実行する。
-6. 不足contractは実装で補わず、設計差し戻しとして報告する。
+6. Backendを対象にする場合は、共通カバレッジ検証スクリプトを実行し、100%であることを確認する。
+7. 不足contractは実装で補わず、設計差し戻しとして報告する。
 
 ## Validation
 
 - `task verify`
+- `task backend:coverage`（またはTask規約で明記された同等スクリプト）
 - `npm ci`、TypeScript型検査、Biome、production build、Vitest
 - `go mod download`、`go mod verify`、`gofmt`、`golangci-lint`、`go test ./...`、Go build
 - 実PostgreSQL integrationとPlaywright E2E

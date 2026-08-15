@@ -7,7 +7,7 @@ description: topic2htmlのGo信頼済みServerとPostgreSQL永続化を実装す
 
 ## Goal
 
-信頼済みアプリoriginで動くGo `net/http` ServerとPostgreSQLの責務を、承認済み設計どおりに実装する。Browser、生成HTML、ログ、fixtureへServer限定の認可情報・秘密値・DB資格情報を露出させない。
+`backend/`の独立Go moduleで動く、GinをHTTP adapterに限定した信頼済みServerとPostgreSQLの責務を、承認済みのClean Architecture設計どおりに実装する。Browser、生成HTML、ログ、fixtureへServer限定の認可情報・秘密値・DB資格情報を露出させない。
 
 ## Use When
 
@@ -31,9 +31,9 @@ description: topic2htmlのGo信頼済みServerとPostgreSQL永続化を実装す
 ## Project Evidence
 
 1. `AGENTS.md`: 実装用Skillは親リポジトリに置き、承認済みでないfile path・symbol・framework APIをPlanningへ持ち込まない。
-2. `DEC-ARCH-003`: Go 1.26.5、標準`net/http`、PostgreSQL、`pgx/v5` / `pgxpool`、parameterized SQL、明示transaction、版管理SQL migrationを採用する。
+2. `DEC-ARCH-003`: `backend/`と`frontend/`を分離し、Backendを独立Go moduleとする。Go 1.26.5、Gin v1.12.0をHTTP adapterに限定したClean Architecture、PostgreSQL、`pgx/v5` / `pgxpool`、parameterized SQL、明示transaction、版管理SQL migrationを採用する。Backendは`handler`、`usecase`、`repository`、`domain`と`cmd` composition rootへ物理的に分ける。Domainはフレームワーク・HTTP・DB・環境変数を参照せず、Usecaseは外部I/Oをportで表現し、Repositoryが外部I/Oを実装する。
 3. `DEC-ARCH-001` / `DEC-ARCH-002`: 信頼済みアプリ、生成HTML隔離origin、PostgreSQLの責務を分離する。
-4. 親リポジトリにはまだ実装パターンがない。最初の実装で局所的な構造を選ぶ場合も、これを恒久的な全体規約として断定せず、以後は既存の近接実装を優先する。
+4. `backend/`では実行入口が依存を組み立て、Ginはrouting、middleware、request/response変換だけを所有する。FrontendはBackend内部、PostgreSQL、秘密情報へ依存せず、同一originの公開HTTP contractだけに依存する。以後は既存の近接実装を優先する。
 
 ## Owned Implementation Scope
 
@@ -45,10 +45,16 @@ description: topic2htmlのGo信頼済みServerとPostgreSQL永続化を実装す
 
 ## File Placement Rules
 
-- 親リポジトリの既存Go module、migration、Task構成があれば、それに従う。
-- 新規骨格では、Go module・SQL migration・実行設定を責務ごとに分けるが、設計が未承認のアプリ全体レイアウトやlibraryをこのSkillだけで採用しない。
+- Go実装、Go module、migration、実行設定は`backend/`配下に置き、FrontendのNode.js/TypeScript資産は`frontend/`に分離する。
+- `backend/domain/`には業務ルールとdomain型だけを置く。`handler`、`usecase`、`repository`、Gin、HTTP、PostgreSQL、外部SDK、環境変数への依存を持ち込まない。
+- `backend/usecase/`にはapplication operationと外部I/O portを置く。`domain`だけへ依存し、`handler`、`repository`、Gin、HTTP、PostgreSQL、外部SDK、環境変数を直接参照しない。
+- `backend/repository/`にはPostgreSQL、Google、Codex app-server、設定などの外部I/O adapterを置く。`domain`と`usecase`のportを実装してよいが、`handler`へ依存しない。
+- `backend/handler/`にはGin routing、middleware、HTTP request/response変換だけを置く。`usecase`と`domain`へ依存してよいが、`repository`を直接参照しない。
+- `backend/cmd/`だけをcomposition rootとし、設定・Secretを読取り、`handler`、`usecase`、`repository`、`domain`をconstructor injectionで組み立てる。設定・Secretをそれ以外の層へ読ませない。
 - migrationは版管理SQLとして保存し、アプリ起動やBrowserから任意に適用できる形にしない。
 - Secret、実運用token、実メールアドレス、接続文字列をソース、fixture、ログへ置かない。
+- Go testは、複数の入力・期待結果・失敗経路を持つ対象をtable-driven testで記述する。
+- `backend/`のカバレッジ検証は、実装者と独立reviewerが同じリポジトリ内の入口から実行できるようにする。原則として`task backend:coverage`を提供し、代替入口を使う場合はTask規約に明記する。
 
 ## Autonomous Decisions
 
@@ -69,15 +75,19 @@ description: topic2htmlのGo信頼済みServerとPostgreSQL永続化を実装す
 2. 近接する既存Go・SQL・Task実装を確認する。初期骨格しかない場合は、承認済み技術制約を超える構成を推測しない。
 3. Server境界、永続化、migrationを小さく一貫した単位で実装する。
 4. 外部入力を検証し、失敗時も秘密情報・保護記録・認可状態を露出または部分更新しないことを確認する。
-5. unitと実PostgreSQLを使う統合テストを追加・更新する。
-6. Validationを実行し、設計不整合はPlanning成果物を直接変更せず報告する。
+5. 実装後にimportまたは構造検証を追加・更新し、`handler → usecase → domain`、`repository → usecase/domain`、`cmd → 全層`以外の依存を検出する。
+6. unitと実PostgreSQLを使う統合テストを追加・更新する。
+7. `task backend:coverage`またはTask規約で定めた同等スクリプトを作成・更新する。backendの対象範囲を計測し、100%未満または計測・テスト失敗時には非0で失敗させる。
+8. Validationを実行し、設計不整合はPlanning成果物を直接変更せず報告する。
 
 ## Validation
 
 - `task verify`（親リポジトリの統一検証。利用可能な場合）
+- `task backend:coverage`（またはTask規約で明記された同等スクリプト）。100%を満たさない場合は完了にしない。
 - `go mod download`、`go mod verify`
 - `gofmt`検査、`golangci-lint`、`go test ./...`、Go build
 - 実PostgreSQLによるmigration / repository結合試験
+- `backend/`配下のimportまたは構造検証により、named layerの禁止依存と`cmd`以外の設定・Secret読取りがないこと
 
 ## Completion Criteria
 

@@ -22,6 +22,24 @@
 
 ## 2026-08-15
 
+- 対象: impl-go-server-postgres / impl-project-verification / implementation-conformance-review
+- 症状: Backendのカバレッジ100%を、実装者と独立reviewerが同一の機械実行可能な入口で検証する規約がなく、table-driven testの要求も一貫していなかった。
+- 根本原因: 実装Skill、検証Skill、独立監査Skillの間で、共通カバレッジスクリプトの作成・実行・非0失敗条件が接続されていなかった。
+- 修正: `task backend:coverage`（またはTask規約で明記された同等スクリプト）を共通入口とし、100%未達・計測失敗・test失敗を非0にすること、table-driven test、実装者とfresh reviewer双方の実行を明記した。
+- Regression Scenario: `impl-go-server-postgres/backend-coverage-script.yaml`、`impl-project-verification/backend-coverage-script.yaml`、`implementation-conformance-review/backend-coverage-script-gate.yaml`
+
+- 対象: impl-go-server-postgres
+- 症状: 承認済み設計が`handler`、`usecase`、`repository`、`domain`と`cmd` composition rootの実ディレクトリを要求していたにもかかわらず、Skillの配置規約は抽象的なClean Architecture表現に留まり、物理配置の移行漏れが再発した。
+- 根本原因: `File Placement Rules`にnamed layerごとの配置、許可・禁止依存、設定・Secret読取りの唯一の責務、構造検証が明示されていなかった。
+- 修正: named layerの物理配置、依存方向、`cmd`だけでの設定・Secret読取りとconstructor injection、構造検証をSkillへ追加した。
+- Regression Scenario: `impl-go-server-postgres/named-layer-physical-layout.yaml`
+
+- 対象: impl-go-server-postgres
+- 症状: 承認済みDEC-ARCH-003がGin v1.12.0のHTTP adapter限定、`backend/`/`frontend/`分離、Clean Architecture、`backend/`独立Go moduleへ改定された後も、Skillが標準`net/http`と旧配置を前提にしていた。
+- 根本原因: 生成済み実装Skillを承認済みの技術基盤Decisionへ同期する手順が欠け、Decision改定時のSkill driftを検出する回帰シナリオもなかった。
+- 修正: Goal、Project Evidence、File Placement RulesをDEC-ARCH-003の境界・依存方向へ最小更新した。
+- Regression Scenario: `impl-go-server-postgres/gin-clean-architecture-boundary.yaml`
+
 - 対象: topic2html-orchestrator / planning-orchestrator
 - 症状: オーケストレーターがOwner Skillへの委譲を記していたが、各工程でsubagentを起動して結果を待つ規約が明文化されていなかった。
 - 根本原因: ルーティングとsubagent実行の責務が手順として接続されていなかった。
