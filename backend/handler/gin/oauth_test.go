@@ -353,10 +353,36 @@ func TestRouterHelpers(t *testing.T) {
 	if got, ok := parseReturnPath(httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", nil)); !ok || got != nil {
 		t.Fatalf("missing return path = %#v, %t", got, ok)
 	}
-	for _, body := range []string{"return_path=%2Fadmin", "unexpected=x", "return_path=%2Fadmin&return_path=%2Fadmin", "return_path=", "return_path=%zz"} {
-		request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader(body))
-		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		_, _ = parseReturnPath(request)
+	for _, testCase := range []struct {
+		name string
+		body string
+	}{
+		{
+			name: "valid return path",
+			body: "return_path=%2Fadmin",
+		},
+		{
+			name: "unexpected parameter",
+			body: "unexpected=x",
+		},
+		{
+			name: "duplicate return path",
+			body: "return_path=%2Fadmin&return_path=%2Fadmin",
+		},
+		{
+			name: "empty return path",
+			body: "return_path=",
+		},
+		{
+			name: "malformed form encoding",
+			body: "return_path=%zz",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader(testCase.body))
+			request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			_, _ = parseReturnPath(request)
+		})
 	}
 	for _, test := range []struct {
 		values url.Values
@@ -383,9 +409,11 @@ func TestRouterHelpers(t *testing.T) {
 			want: false,
 		},
 	} {
-		_, ok := singleQueryValue(test.values, test.key)
-		if ok != test.want {
-			t.Errorf("singleQueryValue(%v) = %t, want %t", test.values, ok, test.want)
-		}
+		t.Run(test.key, func(t *testing.T) {
+			_, ok := singleQueryValue(test.values, test.key)
+			if ok != test.want {
+				t.Errorf("singleQueryValue(%v) = %t, want %t", test.values, ok, test.want)
+			}
+		})
 	}
 }

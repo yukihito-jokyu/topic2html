@@ -297,6 +297,16 @@ func TestServiceStart(t *testing.T) {
 			},
 			wantError: true,
 		},
+		{
+			name: "short random result",
+			input: StartInput{
+				Origins: []string{"https://admin.example.test"},
+			},
+			configure: func(_ *oauthTestStore, _ *oauthTestProvider, security *oauthTestSecurity) {
+				security.shortResult = 1
+			},
+			wantError: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -330,19 +340,6 @@ func TestServiceStart(t *testing.T) {
 				}
 			}
 		})
-	}
-	short := &oauthTestSecurity{
-		shortResult: 1,
-	}
-	store := &oauthTestStore{}
-	provider := &oauthTestProvider{
-		authorizationURL: "https://accounts.google.test/authorize",
-	}
-	service, _ := newOAuthService(store, provider, short)
-	if _, err := service.Start(ctx, StartInput{
-		Origins: []string{"https://admin.example.test"},
-	}); err == nil {
-		t.Fatal("short random result succeeded")
 	}
 }
 
@@ -606,6 +603,24 @@ func TestServiceCallback(t *testing.T) {
 			wantError: true,
 			wantCall:  true,
 		},
+		{
+			name: "short random result",
+			input: CallbackInput{
+				TransactionReference: "tx",
+				State:                "state",
+				Code:                 "code",
+			},
+			configure: func(store *oauthTestStore, provider *oauthTestProvider, security *oauthTestSecurity, now time.Time) {
+				store.consume, store.found = validOAuthRecord(now), true
+				security.shortResult = 1
+				security.openValue = []byte("verifier")
+				provider.identity = domainauth.VerifiedIdentity{
+					Email:         "admin@example.test",
+					EmailVerified: true,
+				}
+			},
+			wantError: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -627,25 +642,6 @@ func TestServiceCallback(t *testing.T) {
 				t.Errorf("provider code = %q, want %q", provider.gotCode, tt.input.Code)
 			}
 		})
-	}
-	short := &oauthTestSecurity{
-		shortResult: 1,
-	}
-	store := &oauthTestStore{}
-	provider := &oauthTestProvider{}
-	service, now := newOAuthService(store, provider, short)
-	store.consume, store.found = validOAuthRecord(now), true
-	short.openValue = []byte("verifier")
-	provider.identity = domainauth.VerifiedIdentity{
-		Email:         "admin@example.test",
-		EmailVerified: true,
-	}
-	if _, err := service.Callback(ctx, CallbackInput{
-		TransactionReference: "tx",
-		State:                "state",
-		Code:                 "code",
-	}); err == nil {
-		t.Fatal("short random result succeeded")
 	}
 }
 

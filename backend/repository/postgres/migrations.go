@@ -11,12 +11,16 @@ import (
 
 const AdminAuthSchemaMigration = "001_admin_auth_schema"
 const AdminSessionCSRFCiphertextMigration = "002_admin_session_csrf_ciphertext"
+const GenerationRequestSchemaMigration = "003_generation_request_schema"
 
 //go:embed migrations/001_admin_auth_schema.sql
 var adminAuthSchemaDDL string
 
 //go:embed migrations/002_admin_session_csrf_ciphertext.sql
 var adminSessionCSRFCiphertextDDL string
+
+//go:embed migrations/003_generation_request_schema.sql
+var generationRequestSchemaDDL string
 
 // ApplyAdminAuthSchemaはmigrationを一つの明示transactionで冪等に適用します。
 func ApplyAdminAuthSchema(ctx context.Context, database *pgxpool.Pool) error {
@@ -40,6 +44,10 @@ func applyMigrations(ctx context.Context, database pool) error {
 		{
 			version: AdminSessionCSRFCiphertextMigration,
 			ddl:     adminSessionCSRFCiphertextDDL,
+		},
+		{
+			version: GenerationRequestSchemaMigration,
+			ddl:     generationRequestSchemaDDL,
 		},
 	} {
 		if err := applyMigrationWithDDL(ctx, database, migration.version, migration.ddl); err != nil {

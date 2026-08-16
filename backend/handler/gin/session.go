@@ -36,7 +36,9 @@ func (h *SessionHandler) Bootstrap(c *gin.Context) {
 		if reference != "" {
 			deleteCookie(c, adminSessionCookie)
 		}
-		c.JSON(http.StatusOK, gin.H{"authenticated": false})
+		c.JSON(http.StatusOK, gin.H{
+			"authenticated": false,
+		})
 
 		return
 	}
@@ -64,7 +66,9 @@ func (h *SessionHandler) Logout(c *gin.Context) {
 		return
 	}
 	deleteCookie(c, adminSessionCookie)
-	c.JSON(http.StatusOK, gin.H{"authenticated": false})
+	c.JSON(http.StatusOK, gin.H{
+		"authenticated": false,
+	})
 }
 
 func (h *SessionHandler) authenticationUnavailable(c *gin.Context) {
@@ -82,5 +86,9 @@ func sessionCookie(request *http.Request) string {
 }
 
 func errorResponse(code string) gin.H {
-	return gin.H{"error": gin.H{"code": code}}
+	return gin.H{
+		"error": gin.H{
+			"code": code,
+		},
+	}
 }
