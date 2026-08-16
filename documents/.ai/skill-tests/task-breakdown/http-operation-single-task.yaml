@@ -1,0 +1,15 @@
+id: task-breakdown-http-operation-single-task
+target_skill: task-breakdown
+scenario: POSTとGETを持つFeatureで、両APIが共通のmigrationとCodex app-server adapterへ依存する。API固有の実装を技術層ごとのTaskへ分けず、横断基盤だけを独立TaskとしてTask化しようとする。
+input_summary: operation別のHTTP契約、DB access、外部I/O、transaction、受け入れ基準が設計済みである。
+expected:
+  - POSTの実装は、入力から永続化・外部I/O・出力・operation固有の検証までを含む1 Taskにする。
+  - GETの実装は、入力からread-only取得・出力・operation固有の検証までを含む別の1 Taskにする。
+  - migrationとCodex app-server adapterは、複数operationから再利用され、API固有の振る舞いを持たず、単独で検証可能なら横断基盤Taskにできる。
+  - 各API Taskは必要な横断基盤Taskへの依存を明記し、API固有の入力・出力・状態変更・失敗処理・検証を保持する。
+  - 画面、operation横断E2E、運用確認は、API operation自体を実装しない場合に限り別Taskにできる。
+forbidden:
+  - handler、usecase、repository、adapter、HTTP testの技術層ごとに同一operationのAPI固有実装を複数Taskへ分割する。
+  - 1 Taskに複数のHTTP API operationを含める。
+  - 1 API専用のmigration、adapter、失敗処理、または検証を横断基盤Taskへ退避する。
+related_issue: user-feedback-2026-08-16-one-http-api-one-task

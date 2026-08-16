@@ -1,5 +1,25 @@
 # Skill Test Change Log
 
+## 2026-08-16
+
+- 対象: task-breakdown
+- 症状: 「1 APIを1 Task」の規約がmigrationとCodex app-server adapterまで各API Taskへ含めるよう読め、複数APIから再利用できる横断基盤を独立Taskにできなかった。
+- 根本原因: API固有実装の集約と、複数operationに共通する独立検証可能な基盤の分離を区別していなかった。
+- 修正: 各APIの固有責務は1 Taskに完結させたまま、複数operationから再利用され、API固有の振る舞いを含まず、単独で検証可能なmigration・Codex app-server adapterなどを横断基盤Taskとして許可する最小規約へ改めた。
+- Regression Scenario: `task-breakdown/http-operation-single-task.yaml`
+
+- 対象: task-breakdown
+- 症状: HTTP APIの実装を、永続化、外部adapter、usecase、handler、検証という技術層ごとの複数Taskに分け、1 APIを1 Taskで完結させられなかった。
+- 根本原因: Task粒度規約が一般的な論理変更単位だけを定め、HTTP API operationを実装単位として集約する規則を持たなかった。
+- 修正: HTTP API operationごとに、必要な層とoperation固有の検証を含む1 Taskへ完結させ、技術層による分割を禁止する最小規約を追加した。画面・横断E2EなどAPI operation自体を実装しない責務は別Taskを許可する。
+- Regression Scenario: `task-breakdown/http-operation-single-task.yaml`
+
+- 対象: feature-design
+- 症状: operation別資料に図があっても、利用者が指定したHTTP API契約資料にAPI全体のフローとClean Architectureの責務境界を確認できなかった。
+- 根本原因: Diagram Policyはoperation別図を扱ったが、利用者指定のHTTP契約資料へのAPI全体図の配置と内容を規定していなかった。
+- 修正: `design/http-contract.md`があるFeatureで利用者が明示要求した場合、APIフローチャートとClean Architecture視点のシーケンス図を同資料へ記載する最小規約を追加した。
+- Regression Scenario: `feature-design/http-contract-api-diagrams.yaml`
+
 ## 2026-08-14
 
 - 対象: workflow decision policy

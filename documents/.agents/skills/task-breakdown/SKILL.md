@@ -46,6 +46,10 @@ Implementation Skillが決めるのは **How / File / Symbol / Library-specific 
 
 Taskは「作業者が成果を検証できる論理変更単位」とする。
 
+HTTP API operationを含むFeatureでは、**1 operationのAPI固有実装は必ず1 Taskに完結**させる。operation Taskは、そのoperationのcontractを成立させるために必要なpresentation、application/domain、persistence、external integration、およびoperation固有の自動検証を含める。handler、usecase、repository、adapter、HTTP testなどの技術層で同一operationのAPI固有責務を複数Taskへ分割してはならない。
+
+複数operationがある場合は、operationごとにTaskを作る。ただしmigration、Codex app-server adapter、共通の永続化基盤など、複数operationが依存し、API固有の振る舞いを含まず、単独で受け入れ・検証できる横断基盤は別Taskにしてよい。operation Taskはその基盤Taskへ依存し、各APIの入力・出力・状態変更・operation固有の失敗処理と検証を引き受ける。画面、複数operationを横断するE2E、運用確認など、API operation自体を実装しない責務も別Taskにしてよい。
+
 良いTask:
 
 - 目的が1つ
@@ -141,11 +145,19 @@ Feature Designから「実装後に成立していなければならないこと
 
 ### 5. 粒度検査
 
+HTTP API operationがある場合は、各operationについて以下を確認する。
+
+- operationの実装がTask 1件だけに対応付けられている。
+- そのTaskだけで、operationの入力・出力・状態変更・operation固有の失敗処理と検証を受け入れ基準として確認できる。横断基盤Taskへ依存する場合は、その依存と責務境界を明記する。
+- 共通層の都合だけで、同一operationのAPI固有責務を永続化、adapter、usecase、handler、検証Taskへ分割していない。
+- migration、外部adapterなどを別Taskにする場合、そのTaskが複数operationから再利用され、API固有の振る舞いを含まず、単独で検証可能であることを確認する。
+
 分割しすぎの兆候:
 
 - Taskが単なるファイル編集指示
 - Acceptance単独で確認できない
 - ほぼ常に別Taskと同時変更が必要
+- 同一HTTP API operationの実装責務が複数Taskへ散っている
 
 大きすぎる兆候:
 

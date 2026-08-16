@@ -1,0 +1,14 @@
+id: feature-design-http-contract-api-diagrams
+target_skill: feature-design
+scenario: HTTP APIとPostgreSQL、外部生成serviceを持つFeatureについて、利用者がHTTP契約資料にAPIフローチャートとClean Architecture視点のシーケンス図を追加するよう依頼する。
+input_summary: Featureはdesign/http-contract.mdとoperation別資料を持つ。POSTはguard、入力検証、外部I/O、永続化、構造化errorを含み、GETはread guardとnot-foundを持つ。
+expected:
+  - POSTとGETの各operationについて、design/http-contract.mdにguard、入力検証、主要な成功・失敗responseを含むフローチャートを一つずつ置く。
+  - POSTとGETの各operationについて、同資料にpresentation adapter、application/domain、outbound port、infrastructure adapterの境界、永続化と外部I/O、失敗時の戻り先を含むClean Architecture視点のシーケンス図を一つずつ置く。
+  - operation別資料の既存図を残し、API契約資料の図または複数APIを混在させた共通図の代替として扱わない。
+forbidden:
+  - 指定されたHTTP契約資料ではなくdesign.mdだけへ図を追加する。
+  - POSTとGETを一つのフローチャートまたは一つのシーケンス図へ混在させる。
+  - 図へfile path、symbol、framework APIを固定する。
+  - APIの成功経路だけを描き、guard、validation、主要error responseを省略する。
+related_issue: user-feedback-2026-08-16-http-contract-api-diagrams
