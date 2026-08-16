@@ -86,6 +86,8 @@ Featureの性質を分析して、必要な設計だけを行う。
 
 利用者がコマンド／operation単位のフローチャートまたはシーケンス図を要求した場合、その要求は当該Featureの設計完了条件とする。共通図だけで個別operationの分岐、永続化境界、失敗時の戻り先を代替してはならない。各operationに図が不要な場合は、operation名と不要理由を明記する。
 
+利用者がHTTP API契約資料へのフローチャートまたはClean Architecture視点のシーケンス図を明示的に要求し、`design/http-contract.md`を設ける場合は、対象HTTP API operationごとにフローチャートとシーケンス図を一つずつ同資料へ置く。operation別資料の図や複数APIを混在させた共通図だけで代替しない。フローチャートは当該operationのguard、入力検証、主要な成功・失敗responseを示し、シーケンス図はpresentation adapter、application/domain、outbound port、infrastructure adapterの責務境界と、永続化・外部I/O・失敗時の戻り先を示す。file path、symbol、framework APIを図へ追加しない。
+
 ## Autonomous Actions
 
 - 対象FeatureのRequirement再構成
