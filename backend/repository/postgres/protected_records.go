@@ -21,6 +21,16 @@ type tx interface {
 type pool interface {
 	Begin(context.Context) (tx, error)
 }
+type reader interface {
+	QueryRow(context.Context, string, ...any) row
+	Query(context.Context, string, ...any) (rows, error)
+}
+type rows interface {
+	Close()
+	Err() error
+	Next() bool
+	Scan(...any) error
+}
 type pgconnTag interface{ RowsAffected() int64 }
 
 type transactionContextKey struct{}
@@ -33,22 +43,28 @@ type pgxTransaction interface {
 }
 
 // Storeは保護記録のPostgreSQL実装です。
-type Store struct{ pool pool }
+type Store struct {
+	pool   pool
+	reader reader
+}
 
 // NewStoreはpoolを注入してStoreを作成します。
 func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{
-		pool: newPGXPool(pool),
+		pool:   newPGXPool(pool),
+		reader: newPGXPool(pool),
 	}
 }
 
 type pgxPool struct {
 	begin func(context.Context) (pgxTransaction, error)
+	pool  *pgxpool.Pool
 }
 
 func newPGXPool(pool *pgxpool.Pool) pgxPool {
 	return pgxPool{
 		begin: func(ctx context.Context) (pgxTransaction, error) { return pool.Begin(ctx) },
+		pool:  pool,
 	}
 }
 
@@ -56,6 +72,13 @@ func (p pgxPool) Begin(ctx context.Context) (tx, error) {
 	value, err := p.begin(ctx)
 
 	return pgxTx{value}, err
+}
+func (p pgxPool) QueryRow(ctx context.Context, sql string, args ...any) row {
+	return p.pool.QueryRow(ctx, sql, args...)
+}
+func (p pgxPool) Query(ctx context.Context, sql string, args ...any) (rows, error) {
+	//nolint:sqlclosecheck // 呼出元のread-only repositoryがrowsを必ずcloseする。
+	return p.pool.Query(ctx, sql, args...)
 }
 
 type pgxTx struct{ tx pgxTransaction }
