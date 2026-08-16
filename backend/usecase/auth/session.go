@@ -15,7 +15,9 @@ func (s *Service) Bootstrap(ctx context.Context, reference string) (SessionBoots
 		return SessionBootstrapOutput{}, s.sessionError(ctx, "session.bootstrap.failed")
 	}
 	if decision != GuardAllowed {
-		return SessionBootstrapOutput{Authenticated: false}, nil
+		return SessionBootstrapOutput{
+			Authenticated: false,
+		}, nil
 	}
 	plaintext, err := s.security.Open(session.CSRFTokenCiphertext)
 	if err != nil || len(plaintext) == 0 || subtle.ConstantTimeCompare(s.security.Hash(plaintext), session.CSRFTokenHash) != 1 {
