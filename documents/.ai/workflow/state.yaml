@@ -3,7 +3,7 @@ workflow: planning
 requirements: completed
 feature_planning: completed
 initial_design: completed
-current_feature: FEAT-001
+current_feature: FEAT-002
 features:
   FEAT-001:
     design: completed
@@ -14,8 +14,19 @@ features:
     human_design_review_approval: "2026-08-15: 利用者がDEC-FEAT-004を含む更新後の詳細設計を明示承認"
     task_breakdown: completed
     implementation_handoff: ready
+  FEAT-002:
+    design: completed
+    design_review: completed
+    implementation_readiness_review: completed
+    implementation_readiness_review_result: "2026-08-16: HTTP・DB・画面・Codex app-server adapter・設定・検証契約を独立監査しpass"
+    human_design_review: approved
+    human_design_review_approval: "2026-08-16: 利用者がHTTP契約図の修正を含む詳細設計を明示承認"
+    task_breakdown: completed
+    task_breakdown_approval: "2026-08-16: 利用者がmigration・Codex app-server基盤を分離し、POST/GETを各1 Taskとする改訂Task分割を明示承認"
+    implementation_handoff: ready
 implementation_ready_features:
   - FEAT-001
+  - FEAT-002
 pending_decisions: []
 source_issue:
   number: 87
