@@ -79,14 +79,20 @@ func TestApplyMigrations(t *testing.T) {
 	}{
 		{
 			name: "all migrations apply",
-			pool: fakePool{transaction: &fakeTx{rows: []error{pgx.ErrNoRows, pgx.ErrNoRows}}},
+			pool: fakePool{
+				transaction: &fakeTx{
+					rows: []error{pgx.ErrNoRows, pgx.ErrNoRows},
+				},
+			},
 		},
 		{
 			name: "second migration fails",
-			pool: fakePool{transaction: &fakeTx{
-				rows: []error{pgx.ErrNoRows, pgx.ErrNoRows},
-				exec: []error{nil, nil, nil, nil, errors.New("boom")},
-			}},
+			pool: fakePool{
+				transaction: &fakeTx{
+					rows: []error{pgx.ErrNoRows, pgx.ErrNoRows},
+					exec: []error{nil, nil, nil, nil, errors.New("boom")},
+				},
+			},
 			wantError: true,
 		},
 	} {
@@ -96,7 +102,11 @@ func TestApplyMigrations(t *testing.T) {
 			}
 		})
 	}
-	if err := applyAdminAuthSchemaWithDDL(context.Background(), fakePool{transaction: &fakeTx{rows: []error{pgx.ErrNoRows}}}, "CREATE TABLE example (id INT);"); err != nil {
+	if err := applyAdminAuthSchemaWithDDL(context.Background(), fakePool{
+		transaction: &fakeTx{
+			rows: []error{pgx.ErrNoRows},
+		},
+	}, "CREATE TABLE example (id INT);"); err != nil {
 		t.Fatal(err)
 	}
 }
