@@ -50,6 +50,17 @@ wait_for_postgres() {
 	exit 1
 }
 
+wait_for_postgres_port() {
+	for _ in {1..30}; do
+		if nc -z 127.0.0.1 "$database_port" >/dev/null 2>&1; then
+			return
+		fi
+		sleep 1
+	done
+	echo "PostgreSQL host port did not become reachable: $database_port" >&2
+	exit 1
+}
+
 trap cleanup EXIT INT TERM
 
 docker run --rm --detach --name "$container" \
@@ -60,6 +71,7 @@ docker run --rm --detach --name "$container" \
 	postgres:16-alpine >/dev/null
 database_port="$(docker port "$container" 5432/tcp | sed -E 's/.*:([0-9]+)$/\1/')"
 wait_for_postgres
+wait_for_postgres_port
 
 export TOPIC2HTML_TRUSTED_APP_ORIGIN="https://localhost:5173"
 export TOPIC2HTML_GOOGLE_CLIENT_ID="e2e-client-id"
