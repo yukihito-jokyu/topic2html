@@ -173,60 +173,59 @@ func TestStartWithEnvironmentLoad(t *testing.T) {
 }
 
 func TestRunDependencyFailures(t *testing.T) {
-	poolFailure := productionDependencies()
-	poolFailure.newPool = func(context.Context, string) (*pgxpool.Pool, error) {
-		return nil, errors.New("pool unavailable")
-	}
-	if err := runWithDependencies(lookup(validEnvironment()), func(*http.Server) error {
-		t.Fatal("server started")
-
-		return nil
-	}, poolFailure); err == nil {
-		t.Fatal("pool failure succeeded")
-	}
-	protectionFailure := productionDependencies()
-	protectionFailure.newPool = func(context.Context, string) (*pgxpool.Pool, error) {
-		return nil, nil
-	}
-	protectionFailure.closePool = func(*pgxpool.Pool) {}
-	protectionFailure.newProtection = func(string) (*security.Service, error) {
-		return nil, errors.New("protection unavailable")
-	}
-	if err := runWithDependencies(lookup(validEnvironment()), func(*http.Server) error {
-		t.Fatal("server started")
-
-		return nil
-	}, protectionFailure); err == nil {
-		t.Fatal("protection failure succeeded")
-	}
-	serviceFailure := productionDependencies()
-	serviceFailure.newPool = func(context.Context, string) (*pgxpool.Pool, error) {
-		return nil, nil
-	}
-	serviceFailure.closePool = func(*pgxpool.Pool) {}
-	serviceFailure.newService = func(usecaseauth.Dependencies, string, string) (*usecaseauth.Service, error) {
-		return nil, errors.New("service unavailable")
-	}
-	if err := runWithDependencies(lookup(validEnvironment()), func(*http.Server) error {
-		t.Fatal("server started")
-
-		return nil
-	}, serviceFailure); err == nil {
-		t.Fatal("service failure succeeded")
-	}
-	successfulDependencies := productionDependencies()
-	successfulDependencies.newPool = func(context.Context, string) (*pgxpool.Pool, error) {
-		return nil, nil
-	}
-	closed := false
-	successfulDependencies.closePool = func(*pgxpool.Pool) { closed = true }
-	if err := runWithDependencies(lookup(validEnvironment()), func(*http.Server) error {
-		return http.ErrServerClosed
-	}, successfulDependencies); err != nil {
-		t.Fatalf("nil pool run error = %v", err)
-	}
-	if !closed {
-		t.Fatal("pool was not closed")
+	for _, testCase := range []struct {
+		name      string
+		configure func(*dependencies, *bool)
+		serve     error
+		wantError bool
+		wantClose bool
+	}{
+		{
+			name: "pool initialization fails",
+			configure: func(dependencies *dependencies, _ *bool) {
+				dependencies.newPool = func(context.Context, string) (*pgxpool.Pool, error) { return nil, errors.New("pool unavailable") }
+			},
+			wantError: true,
+		},
+		{
+			name: "protection initialization fails",
+			configure: func(dependencies *dependencies, _ *bool) {
+				dependencies.newPool = func(context.Context, string) (*pgxpool.Pool, error) { return nil, nil }
+				dependencies.closePool = func(*pgxpool.Pool) {}
+				dependencies.newProtection = func(string) (*security.Service, error) { return nil, errors.New("protection unavailable") }
+			},
+			wantError: true,
+		},
+		{
+			name: "service initialization fails",
+			configure: func(dependencies *dependencies, _ *bool) {
+				dependencies.newPool = func(context.Context, string) (*pgxpool.Pool, error) { return nil, nil }
+				dependencies.closePool = func(*pgxpool.Pool) {}
+				dependencies.newService = func(usecaseauth.Dependencies, string, string) (*usecaseauth.Service, error) {
+					return nil, errors.New("service unavailable")
+				}
+			},
+			wantError: true,
+		},
+		{
+			name: "server closes cleanly",
+			configure: func(dependencies *dependencies, closed *bool) {
+				dependencies.newPool = func(context.Context, string) (*pgxpool.Pool, error) { return nil, nil }
+				dependencies.closePool = func(*pgxpool.Pool) { *closed = true }
+			},
+			serve:     http.ErrServerClosed,
+			wantClose: true,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			dependencies := productionDependencies()
+			closed := false
+			testCase.configure(&dependencies, &closed)
+			err := runWithDependencies(lookup(validEnvironment()), func(*http.Server) error { return testCase.serve }, dependencies)
+			if (err != nil) != testCase.wantError || closed != testCase.wantClose {
+				t.Fatalf("error=%v closed=%t", err, closed)
+			}
+		})
 	}
 }
 

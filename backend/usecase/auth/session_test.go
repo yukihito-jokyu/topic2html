@@ -148,8 +148,10 @@ func TestSessionGuardsAndLogout(t *testing.T) {
 		wantError bool
 	}{
 		{
-			name:  "expired read is unauthenticated",
-			input: SessionInput{SessionReference: "session"},
+			name: "expired read is unauthenticated",
+			input: SessionInput{
+				SessionReference: "session",
+			},
 			configure: func(store *sessionTestStore, security *oauthTestSecurity) {
 				store.session, store.found = validSessionForTest(now, security), true
 				expired := now.Add(-time.Second)
@@ -161,14 +163,20 @@ func TestSessionGuardsAndLogout(t *testing.T) {
 			want: GuardUnauthenticated,
 		},
 		{
-			name:   "logout anonymous is idempotent",
-			input:  SessionInput{Origins: []string{"https://admin.example.test"}},
+			name: "logout anonymous is idempotent",
+			input: SessionInput{
+				Origins: []string{"https://admin.example.test"},
+			},
 			method: (*Service).Logout,
 			want:   GuardAllowed,
 		},
 		{
-			name:  "logout revokes authenticated session",
-			input: SessionInput{SessionReference: "session", Origins: []string{"https://admin.example.test"}, CSRFToken: "csrf"},
+			name: "logout revokes authenticated session",
+			input: SessionInput{
+				SessionReference: "session",
+				Origins:          []string{"https://admin.example.test"},
+				CSRFToken:        "csrf",
+			},
 			configure: func(store *sessionTestStore, security *oauthTestSecurity) {
 				store.session, store.found, store.revoked = validSessionForTest(now, security), true, true
 			},
@@ -176,8 +184,11 @@ func TestSessionGuardsAndLogout(t *testing.T) {
 			want:   GuardAllowed,
 		},
 		{
-			name:  "logout record failure",
-			input: SessionInput{SessionReference: "session", Origins: []string{"https://admin.example.test"}},
+			name: "logout record failure",
+			input: SessionInput{
+				SessionReference: "session",
+				Origins:          []string{"https://admin.example.test"},
+			},
 			configure: func(store *sessionTestStore, _ *oauthTestSecurity) {
 				store.findErr = errors.New("database")
 			},
@@ -289,7 +300,9 @@ func TestRunAuthorizedAdminStateChange(t *testing.T) {
 }
 
 func TestAuthorizeReadUnavailable(t *testing.T) {
-	store := &sessionTestStore{findErr: errors.New("database")}
+	store := &sessionTestStore{
+		findErr: errors.New("database"),
+	}
 	service, _ := newSessionService(store, &oauthTestSecurity{})
 	decision, err := service.AuthorizeRead(context.Background(), "session")
 	if decision != GuardUnauthenticated || apperr.CodeOf(err) != apperr.CodeUnavailable {
@@ -306,21 +319,31 @@ func TestLogoutRejectedAndRevokeFailure(t *testing.T) {
 		wantError bool
 	}{
 		{
-			name:  "invalid origin",
-			input: SessionInput{Origins: []string{"https://evil.example.test"}},
-			want:  GuardForbidden,
+			name: "invalid origin",
+			input: SessionInput{
+				Origins: []string{"https://evil.example.test"},
+			},
+			want: GuardForbidden,
 		},
 		{
-			name:  "invalid csrf",
-			input: SessionInput{SessionReference: "session", Origins: []string{"https://admin.example.test"}, CSRFToken: "wrong"},
+			name: "invalid csrf",
+			input: SessionInput{
+				SessionReference: "session",
+				Origins:          []string{"https://admin.example.test"},
+				CSRFToken:        "wrong",
+			},
 			configure: func(store *sessionTestStore, security *oauthTestSecurity, now time.Time) {
 				store.session, store.found = validSessionForTest(now, security), true
 			},
 			want: GuardForbidden,
 		},
 		{
-			name:  "revoke failure",
-			input: SessionInput{SessionReference: "session", Origins: []string{"https://admin.example.test"}, CSRFToken: "csrf"},
+			name: "revoke failure",
+			input: SessionInput{
+				SessionReference: "session",
+				Origins:          []string{"https://admin.example.test"},
+				CSRFToken:        "csrf",
+			},
 			configure: func(store *sessionTestStore, security *oauthTestSecurity, now time.Time) {
 				store.session, store.found, store.revokeErr = validSessionForTest(now, security), true, errors.New("database")
 			},
@@ -328,8 +351,12 @@ func TestLogoutRejectedAndRevokeFailure(t *testing.T) {
 			wantError: true,
 		},
 		{
-			name:  "already revoked concurrently",
-			input: SessionInput{SessionReference: "session", Origins: []string{"https://admin.example.test"}, CSRFToken: "csrf"},
+			name: "already revoked concurrently",
+			input: SessionInput{
+				SessionReference: "session",
+				Origins:          []string{"https://admin.example.test"},
+				CSRFToken:        "csrf",
+			},
 			configure: func(store *sessionTestStore, security *oauthTestSecurity, now time.Time) {
 				store.session, store.found = validSessionForTest(now, security), true
 			},

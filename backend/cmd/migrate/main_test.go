@@ -12,22 +12,54 @@ func TestRun(t *testing.T) {
 	originalNewPool, originalApply, originalClose := newPool, applyMigration, closePool
 	t.Cleanup(func() { newPool, applyMigration, closePool = originalNewPool, originalApply, originalClose })
 	lookup := func(string) (string, bool) { return "postgres://user:password@localhost:5432/topic2html", true }
-	if err := run(context.Background(), func(string) (string, bool) { return "", false }); err == nil {
-		t.Fatal("missing config succeeded")
-	}
-	newPool = func(context.Context, string) (*pgxpool.Pool, error) { return nil, errors.New("unavailable") }
-	if err := run(context.Background(), lookup); err == nil {
-		t.Fatal("connection succeeded")
-	}
-	newPool = func(context.Context, string) (*pgxpool.Pool, error) { return &pgxpool.Pool{}, nil }
-	closePool = func(*pgxpool.Pool) {}
-	applyMigration = func(context.Context, *pgxpool.Pool) error { return errors.New("migration failure") }
-	if err := run(context.Background(), lookup); err == nil {
-		t.Fatal("migration succeeded")
-	}
-	applyMigration = func(context.Context, *pgxpool.Pool) error { return nil }
-	if err := run(context.Background(), lookup); err != nil {
-		t.Fatal(err)
+	for _, testCase := range []struct {
+		name      string
+		lookup    func(string) (string, bool)
+		configure func()
+		wantError bool
+	}{
+		{
+			name:      "missing configuration",
+			lookup:    func(string) (string, bool) { return "", false },
+			wantError: true,
+		},
+		{
+			name:   "pool connection fails",
+			lookup: lookup,
+			configure: func() {
+				newPool = func(context.Context, string) (*pgxpool.Pool, error) { return nil, errors.New("unavailable") }
+			},
+			wantError: true,
+		},
+		{
+			name:   "migration fails",
+			lookup: lookup,
+			configure: func() {
+				newPool = func(context.Context, string) (*pgxpool.Pool, error) { return &pgxpool.Pool{}, nil }
+				closePool = func(*pgxpool.Pool) {}
+				applyMigration = func(context.Context, *pgxpool.Pool) error { return errors.New("migration failure") }
+			},
+			wantError: true,
+		},
+		{
+			name:   "migration succeeds",
+			lookup: lookup,
+			configure: func() {
+				newPool = func(context.Context, string) (*pgxpool.Pool, error) { return &pgxpool.Pool{}, nil }
+				closePool = func(*pgxpool.Pool) {}
+				applyMigration = func(context.Context, *pgxpool.Pool) error { return nil }
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			newPool, applyMigration, closePool = originalNewPool, originalApply, originalClose
+			if testCase.configure != nil {
+				testCase.configure()
+			}
+			if err := run(context.Background(), testCase.lookup); (err != nil) != testCase.wantError {
+				t.Fatalf("error=%v", err)
+			}
+		})
 	}
 }
 

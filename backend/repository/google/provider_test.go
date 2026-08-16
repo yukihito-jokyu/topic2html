@@ -53,48 +53,71 @@ func TestProviderAuthorizationURL(t *testing.T) {
 			t.Errorf("query %s = %q, want %q", key, query.Get(key), want)
 		}
 	}
-	for _, request := range []usecaseauth.AuthorizationRequest{
-		{},
+	for _, testCase := range []struct {
+		name    string
+		request usecaseauth.AuthorizationRequest
+	}{
 		{
-			State: "state",
+			name: "missing state",
 		},
 		{
-			State: "state",
-			Nonce: "nonce",
+			name: "missing nonce",
+			request: usecaseauth.AuthorizationRequest{
+				State: "state",
+			},
+		},
+		{
+			name: "missing code challenge",
+			request: usecaseauth.AuthorizationRequest{
+				State: "state",
+				Nonce: "nonce",
+			},
 		},
 	} {
-		if _, err := provider.AuthorizationURL(context.Background(), request); err == nil {
-			t.Errorf("invalid request %+v succeeded", request)
-		}
+		t.Run(testCase.name, func(t *testing.T) {
+			if _, err := provider.AuthorizationURL(context.Background(), testCase.request); err == nil {
+				t.Errorf("invalid request %+v succeeded", testCase.request)
+			}
+		})
 	}
-	invalid := *provider
-	invalid.config.ClientID = ""
-	if _, err := invalid.AuthorizationURL(context.Background(), usecaseauth.AuthorizationRequest{
-		State:         "s",
-		Nonce:         "n",
-		CodeChallenge: "c",
-	}); err == nil {
-		t.Fatal("missing client ID succeeded")
-	}
-	provider.client = NewClient(roundTripperFunc(func(*http.Request) (*http.Response, error) { return nil, fmt.Errorf("network") }))
-	if _, err := provider.AuthorizationURL(context.Background(), usecaseauth.AuthorizationRequest{
-		State:         "s",
-		Nonce:         "n",
-		CodeChallenge: "c",
-	}); err == nil {
-		t.Fatal("discovery failure succeeded")
-	}
-	provider.client = oidcTestClient{
-		discovery: Discovery{
-			AuthorizationEndpoint: "%",
+	for _, testCase := range []struct {
+		name      string
+		configure func(*Provider)
+	}{
+		{
+			name: "missing client ID",
+			configure: func(provider *Provider) {
+				provider.config.ClientID = ""
+			},
 		},
-	}
-	if _, err := provider.AuthorizationURL(context.Background(), usecaseauth.AuthorizationRequest{
-		State:         "s",
-		Nonce:         "n",
-		CodeChallenge: "c",
-	}); err == nil {
-		t.Fatal("invalid authorization endpoint succeeded")
+		{
+			name: "discovery failure",
+			configure: func(provider *Provider) {
+				provider.client = NewClient(roundTripperFunc(func(*http.Request) (*http.Response, error) { return nil, fmt.Errorf("network") }))
+			},
+		},
+		{
+			name: "invalid authorization endpoint",
+			configure: func(provider *Provider) {
+				provider.client = oidcTestClient{
+					discovery: Discovery{
+						AuthorizationEndpoint: "%",
+					},
+				}
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			localProvider := newTestProvider(server)
+			testCase.configure(localProvider)
+			if _, err := localProvider.AuthorizationURL(context.Background(), usecaseauth.AuthorizationRequest{
+				State:         "s",
+				Nonce:         "n",
+				CodeChallenge: "c",
+			}); err == nil {
+				t.Fatal("invalid authorization URL succeeded")
+			}
+		})
 	}
 }
 
@@ -110,17 +133,37 @@ func TestProviderExchangeAndVerify(t *testing.T) {
 	if identity.Email != "admin@example.test" || !identity.EmailVerified {
 		t.Fatalf("identity = %+v", identity)
 	}
-	provider.client = NewClient(roundTripperFunc(func(*http.Request) (*http.Response, error) {
-		return nil, errors.New("network")
-	}))
-	if _, err := provider.ExchangeAndVerify(context.Background(), "code", "verifier", nonceHash); apperr.CodeOf(err) != apperr.CodeUnavailable {
-		t.Fatalf("discovery error code = %q", apperr.CodeOf(err))
-	}
-	provider.client = oidcTestClient{
-		discovery: Discovery{},
-	}
-	if _, err := provider.ExchangeAndVerify(context.Background(), "code", "verifier", nonceHash); err == nil {
-		t.Fatal("empty discovery issuer succeeded")
+	for _, testCase := range []struct {
+		name            string
+		configure       func(*Provider)
+		wantUnavailable bool
+	}{
+		{
+			name: "discovery network failure",
+			configure: func(provider *Provider) {
+				provider.client = NewClient(roundTripperFunc(func(*http.Request) (*http.Response, error) {
+					return nil, errors.New("network")
+				}))
+			},
+			wantUnavailable: true,
+		},
+		{
+			name: "empty discovery issuer",
+			configure: func(provider *Provider) {
+				provider.client = oidcTestClient{
+					discovery: Discovery{},
+				}
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			localProvider := newTestProvider(server)
+			testCase.configure(localProvider)
+			_, err := localProvider.ExchangeAndVerify(context.Background(), "code", "verifier", nonceHash)
+			if err == nil || (testCase.wantUnavailable && apperr.CodeOf(err) != apperr.CodeUnavailable) {
+				t.Fatalf("error=%v code=%q", err, apperr.CodeOf(err))
+			}
+		})
 	}
 	tests := []struct {
 		name   string
@@ -221,10 +264,31 @@ func TestProviderHelpers(t *testing.T) {
 	if got, err := parseAudience(json.RawMessage(`["client","other"]`)); err != nil || len(got) != 2 {
 		t.Fatalf("multiple audience = %#v, %v", got, err)
 	}
-	for _, raw := range []string{"", `[]`, `["client",""]`, `{}`} {
-		if _, err := parseAudience(json.RawMessage(raw)); err == nil {
-			t.Errorf("invalid audience %q succeeded", raw)
-		}
+	for _, testCase := range []struct {
+		name string
+		raw  string
+	}{
+		{
+			name: "empty",
+		},
+		{
+			name: "empty array",
+			raw:  `[]`,
+		},
+		{
+			name: "empty audience element",
+			raw:  `["client",""]`,
+		},
+		{
+			name: "object",
+			raw:  `{}`,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			if _, err := parseAudience(json.RawMessage(testCase.raw)); err == nil {
+				t.Errorf("invalid audience %q succeeded", testCase.raw)
+			}
+		})
 	}
 	if !contains([]string{"a", "b"}, "b") || contains([]string{"a"}, "b") {
 		t.Fatal("contains result is incorrect")
@@ -240,16 +304,30 @@ func TestProviderHelpers(t *testing.T) {
 	}, "key"); err == nil {
 		t.Fatal("non-RSA key succeeded")
 	}
-	for _, raw := range []string{
-		`{"kty":"RSA","kid":"key","n":"%%%","e":"AQAB"}`,
-		`{"kty":"RSA","kid":"key","n":"AQ","e":"%%%"}`,
-		`{"kty":"RSA","kid":"key","n":"AQ","e":"Ag"}`,
+	for _, testCase := range []struct {
+		name string
+		raw  string
+	}{
+		{
+			name: "invalid modulus encoding",
+			raw:  `{"kty":"RSA","kid":"key","n":"%%%","e":"AQAB"}`,
+		},
+		{
+			name: "invalid exponent encoding",
+			raw:  `{"kty":"RSA","kid":"key","n":"AQ","e":"%%%"}`,
+		},
+		{
+			name: "invalid exponent value",
+			raw:  `{"kty":"RSA","kid":"key","n":"AQ","e":"Ag"}`,
+		},
 	} {
-		if _, err := findRSAKey(JWKS{
-			Keys: []json.RawMessage{json.RawMessage(raw)},
-		}, "key"); err == nil {
-			t.Errorf("invalid JWK %s succeeded", raw)
-		}
+		t.Run(testCase.name, func(t *testing.T) {
+			if _, err := findRSAKey(JWKS{
+				Keys: []json.RawMessage{json.RawMessage(testCase.raw)},
+			}, "key"); err == nil {
+				t.Errorf("invalid JWK %s succeeded", testCase.raw)
+			}
+		})
 	}
 	if got := digestSigningInput("a", "b"); len(got) != sha256.Size {
 		t.Fatalf("digest size = %d", len(got))
