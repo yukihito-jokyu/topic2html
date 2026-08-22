@@ -65,6 +65,18 @@ func TestLoadConfig(t *testing.T) {
 			wantError: true,
 		},
 		{
+			name:      "missing broker endpoint",
+			configure: func(env map[string]string) { delete(env, "TOPIC2HTML_CODEX_EXECUTION_BROKER_ENDPOINT") },
+			wantError: true,
+		},
+		{
+			name: "non unix broker endpoint",
+			configure: func(env map[string]string) {
+				env["TOPIC2HTML_CODEX_EXECUTION_BROKER_ENDPOINT"] = "tcp://127.0.0.1:8080"
+			},
+			wantError: true,
+		},
+		{
 			name:      "origin has path",
 			configure: func(env map[string]string) { env["TOPIC2HTML_TRUSTED_APP_ORIGIN"] = "https://admin.example.test/admin" },
 			wantError: true,
@@ -425,15 +437,47 @@ func TestPostgresURL(t *testing.T) {
 	}
 }
 
+func TestPrivateUnixEndpoint(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		value     string
+		wantError bool
+	}{
+		{
+			name:  "absolute socket",
+			value: "unix:///var/run/topic2html/broker.sock",
+		},
+		{
+			name:      "network endpoint",
+			value:     "tcp://127.0.0.1:8080",
+			wantError: true,
+		},
+		{
+			name:      "relative socket",
+			value:     "unix://broker.sock",
+			wantError: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := privateUnixEndpoint(tt.value); (err != nil) != tt.wantError {
+				t.Errorf("privateUnixEndpoint(%q) error = %v, wantError %t", tt.value, err, tt.wantError)
+			}
+		})
+	}
+}
+
 func validEnvironment() map[string]string {
 	// #nosec G101 -- test fixture
 	return map[string]string{
-		"TOPIC2HTML_TRUSTED_APP_ORIGIN":   "https://admin.example.test",
-		"TOPIC2HTML_GOOGLE_CLIENT_ID":     "test-client-id",
-		"TOPIC2HTML_GOOGLE_CLIENT_SECRET": "test-client-secret",
-		"TOPIC2HTML_ALLOWED_EMAIL":        "admin@example.test",
-		"TOPIC2HTML_DATABASE_URL":         "postgres://app:password@db.example.test:5432/topic2html",
-		"TOPIC2HTML_PROTECTION_KEY":       "test-protection-key",
+		"TOPIC2HTML_TRUSTED_APP_ORIGIN":              "https://admin.example.test",
+		"TOPIC2HTML_GOOGLE_CLIENT_ID":                "test-client-id",
+		"TOPIC2HTML_GOOGLE_CLIENT_SECRET":            "test-client-secret",
+		"TOPIC2HTML_ALLOWED_EMAIL":                   "admin@example.test",
+		"TOPIC2HTML_DATABASE_URL":                    "postgres://app:password@db.example.test:5432/topic2html",
+		"TOPIC2HTML_PROTECTION_KEY":                  "test-protection-key",
+		"TOPIC2HTML_CODEX_EXECUTION_BROKER_ENDPOINT": "unix:///var/run/topic2html/broker.sock",
 	}
 }
 

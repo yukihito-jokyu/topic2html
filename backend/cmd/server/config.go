@@ -26,6 +26,7 @@ type Config struct {
 	AllowedEmail            string
 	DatabaseURL             string
 	ProtectionKey           string
+	CodexBrokerEndpoint     string
 }
 
 // loadConfigは設定を検証します。
@@ -67,6 +68,13 @@ func loadConfig(lookup LookupEnv) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	brokerEndpoint, err := required(lookup, "TOPIC2HTML_CODEX_EXECUTION_BROKER_ENDPOINT")
+	if err != nil {
+		return Config{}, err
+	}
+	if err := privateUnixEndpoint(brokerEndpoint); err != nil {
+		return Config{}, err
+	}
 	discoveryEndpoint, err := optionalLoopbackHTTPEndpoint(lookup, "TOPIC2HTML_GOOGLE_DISCOVERY_ENDPOINT", google.DefaultDiscoveryEndpoint)
 	if err != nil {
 		return Config{}, err
@@ -84,7 +92,17 @@ func loadConfig(lookup LookupEnv) (Config, error) {
 		AllowedEmail:            allowedEmail,
 		DatabaseURL:             databaseURL,
 		ProtectionKey:           protectionKey,
+		CodexBrokerEndpoint:     brokerEndpoint,
 	}, nil
+}
+
+func privateUnixEndpoint(value string) error {
+	u, err := url.Parse(value)
+	if err != nil || u.Scheme != "unix" || u.Host != "" || u.RawQuery != "" || u.Fragment != "" || !strings.HasPrefix(u.Path, "/") {
+		return errors.New("broker endpoint must be an absolute unix socket")
+	}
+
+	return nil
 }
 
 func optionalLoopbackHTTPEndpoint(lookup LookupEnv, name, defaultValue string) (string, error) {

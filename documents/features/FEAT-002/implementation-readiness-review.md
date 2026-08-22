@@ -5,42 +5,42 @@
 
 ## 独立監査の範囲
 
-設計者および詳細設計レビュー担当者とは独立に、`requirements.md`、`design.md`、`design/**`、承認済みのDEC-FEAT-001/002、`design-review.md`、要件・Initial Design・FEAT-001の管理HTTP契約、workflow stateとDecision Policyを実装者視点で照合した。
+設計者、R-001補正後の詳細設計レビュー担当者、Task/handoff同期担当者とは異なる実装者視点で、`requirements.md`、詳細設計、承認済みDEC-FEAT-001〜004、`design-review.md`、`tasks.md`、`implementation-handoff.yaml`、Initial Design、FEAT-001のhandoffおよび現行Go Server compositionを照合した。
 
-FEAT-002のTaskとimplementation handoffはまだ存在しない。これは本ゲートの後段であり、本レビューの欠落ではない。
+監査の焦点は、broker/private IPCの設定・秘密所有、admission/shutdown/retryの排他、process group cleanup、test double、既存compositionへの接続である。実装の内部package、IPCの具体実装方式、test helperは、承認済みの安全契約を変えないImplementation領域の選択として扱った。
 
 ## 実装者が依存する確定契約
 
-| 領域 | 監査結果 | 実装可能な契約 |
+| 領域 | 判定 | 実装可能な契約 |
 | --- | --- | --- |
-| PostgreSQL / migration | pass | migration `003`の順序・transaction失敗時rollback、3 tableのDDL相当、UUID・NULL・CHECK・FK・index、候補不変trigger、T1〜T4が定義されている。 |
-| 管理HTTP | pass | POST/GETのmethod・path、JSON入力、正規化、201/400/409/422/404/500、resource/error field、`no-store`、FEAT-001のread/mutation guardが定義されている。 |
-| 画面 | pass | 初回・修正文脈、結果再表示route、送信中・成功・最終失敗・中断記録・session障害、HTTP写像、A11y、responsive、候補本文/秘密の非露出が定義されている。 |
-| operation / transaction | pass | 最大4試行、冪等性の扱い、VersionSource失敗、DB rollback時の停止、外部I/O中にtransactionを保持しない規則、`running`の安全な観測が定義されている。 |
-| 設定・秘密値 | pass | Server限定の実行可能ファイルと専用workdir、起動時fail-fast、固定argv、資格情報の所有境界、Browser・DB・ログへの非露出、smoke testの責務が定義されている。 |
-| Codex app-server外部境界 | pass | attemptごとの子process所有、v2 JSON-RPCの固定wire・相関・許可notification、出力採用規則、失敗正規化、HTTP切断、shutdown、close/wait/terminate/kill/reapの順序が定義されている。 |
-| 検証 | pass | unit / PostgreSQL integration / adapter contract / HTTP / UI / E2E / smoke testの役割、test doubleの観測点、fixtureと秘密値の制約が定義されている。 |
+| broker / private IPC | pass | Go Serverはprivate local IPC endpointだけを起動時に検証してbroker clientへ注入する。brokerだけが別OS service accountでCodex認証、実行可能ファイル、空workdir、app-server子processを所有する。clientは完成済みpromptだけを送り、HTML本文または安全な分類だけを受け取る。任意command・argv・cwd・環境・認証path・外部ID/詳細errorをIPC入出力に含めない。 |
+| 設定・秘密 | pass | `TOPIC2HTML_CODEX_EXECUTION_BROKER_ENDPOINT`はGo Server所有、実行可能ファイルとworkdirはbroker所有である。双方で欠落・形式不正・接続/実行不能をfail-fastとし、Go ServerのDB/Google/CSRF/session秘密とCodex認証の双方向非継承を明示している。Browser、DB、ログ、fixtureへの非露出も定義済みである。 |
+| app-server wire | pass | broker内で固定argv、`initialize`→`initialized`→`thread/start`→`turn/start`、固定params、ID照合、保留notificationの再照合、許可notification、単一完了agentMessageの採用規則、未知/不正wireのfail closedが定義済みである。 |
+| admission / retry / shutdown | pass | brokerの唯一の直列化点が`open → closing → closed`を所有する。close先行は`shutdown_rejected`、process・attempt行なしでrequestだけをT4終端化する。admit先行はregistry登録済みattemptを一回だけ中断結果として返し、T4でattemptとrequestを終端化する。いずれも後続retryを開始しない。Go Serverはgate・registry・processを更新しない。 |
+| cleanup / 永続化 | pass | 各attemptは独立process groupであり、stdin close・送信停止、5秒wait、group terminate、5秒wait、group kill、wait/reapの順を一回だけ実行する。brokerのreapはT4書込み失敗から独立し、書込み失敗時は既存規則どおり`running`を残して再開しない。外部I/O中にDB transactionを保持しない。 |
+| テスト | pass | 決定的doubleがIPC許可client・入出力制限、固定wire、順序/ID異常、候補選択、切断後継続、close先行/admit先行の競合、group cleanup、終端記録失敗後のreapを観測する。通常CI/E2Eは実Codex認証・外部networkへ依存せず、実環境だけで秘密隔離smoke testを行う。 |
+| Server composition | pass | 現行の`backend/cmd/server`は設定読取り・検証、repository/usecase/handlerのconstructor注入、HTTP Server生成をcompositionに限定している。FEAT-002はここへbroker endpoint検証、broker client注入、HTTP受理停止後にbroker cleanupとT4処理を待ってからDB依存を閉じる停止順を追加できる。Go Serverからbroker実行可能ファイル・workdir・Codex認証を読ませる変更は契約違反である。 |
 
-## 外部adapterの実装可能性
+## 反証的確認
 
-以前の差し戻し事項だったadapter境界は、`design/codex-app-server-adapter.md`で次のように具体化されている。
+- Serverがbrokerを直接子processとして起動する案は、既存のGo Server環境・UIDの継承によりDEC-FEAT-003の秘密分離に反するため採用できない。private IPC brokerという承認済み境界がこの反証を排除している。
+- Go Serverとbrokerの両方にadmission gateを置く案は、T2後のretryとshutdownの順序を二重に管理し、attempt/終端記録の重複を生む。設計はbrokerだけを直列化点とし、この競合を一意にしている。
+- shutdownを通常の`generation_unavailable` retryへ戻す案は、停止後の新規process起動を許し得る。`shutdown_rejected`とadmit済み中断を分け、どちらもretryなしのT4とするため、この抜け道はない。
+- 親PIDだけを終了する案は孫processを残し得る。group単位のsignalと最終reapの順序、ならびにそれを観測するdoubleが定義されている。
+- 現行Serverにはまだgraceful shutdown実装がないが、これは実装対象であって未決定の製品・運用契約ではない。停止順、待機対象、DB依存のclose条件はDEC-FEAT-004とadapter契約に固定済みである。
 
-- 一attempt一processであり、同時要求間でstdio、thread、turnを共有しない。
-- `initialize`、`initialized`、`thread/start`、`turn/start`の送信順、固定params、request IDとthread/turn IDの相関、開始responseより先に来たnotificationの保留・再照合が定義されている。
-- 空の専用workdir、`approvalPolicy: never`、`sandbox: read-only`を固定し、client request、approval、command/file/MCP等の非許可item、未知または順序不正wireを`generation_unavailable`へfail closedする。
-- `turn.status = completed`と、一件だけの`item/completed.agentMessage.text`を両方必要とする。delta、reasoning、tool結果、複数/空出力、途中終了は候補に採用しない。
-- 通常処理にdeadlineを置かず、HTTP切断後はServer所有contextで処理を継続する。終了時のstdin close、wait、process groupへのterminate/kill、reap、新規attempt停止とshutdown中の失敗確定が定義されている。
+## Task / handoff 整合
 
-これにより、process再利用、wireの許容範囲、HTML本文の選択、cleanupをrepository実装時の裁量に残していない。5秒は正常処理の期限ではなくcleanup猶予として限定され、NFR-006とも整合する。
+`TASK-002-02`とhandoffはDEC-FEAT-003/004を参照し、旧来の「Go Serverがapp-serverを直接起動する」契約を含まない。Taskはbroker client、owner別fail-fast設定、OS identity、private IPC、admission、process group cleanup、決定的doubleを明示し、R-001補正どおりDB attempt/T4、retry、DB書込み失敗、HTTP client切断後の継続、HTTP statusを対象外として分離している。これらはTASK-002-01/03のPostgreSQL・usecase・POST integration検証に明示的に配置されている。
+
+workflow stateの`stale`は、承認済みDecision後に再レビュー・利用者承認・handoff最終化を要求する進行状態であり、契約内容の未承認やTask/handoffの不整合を意味しない。未解決のL3/L4 Decisionは検出しなかった。
 
 ## 実装への不適切な委譲の確認
 
-公開HTTP、候補/版の所有境界、HTML合格条件、DB状態、retry、設定、認可、外部wire、安全な失敗・cleanupに関する「実装時に決める」記述は検出しなかった。残るfile path、package、symbol、JSON-RPC reader/writerの局所構造はImplementation領域で決めてよい範囲である。
-
-FEAT-003のVersionSource実装とFEAT-005の隔離表示は後続Featureの明示的責務であり、FEAT-002はport/fakeおよび候補metadataで独立して実装・検証できる。これは未決定の依存ではない。
+公開HTTP、DB、brokerの入力/出力制限、秘密所有、admissionとshutdownの順序、retry排他、cleanup、test doubleの観測点に「実装時に決める」べき未確定契約は検出しなかった。private IPCの具体transport、broker binaryの内部配置、同期・mutex・process APIなどは、same-host private endpoint・OS permission・上記の入出力制限を満たす限り局所的な実装選択である。
 
 ## 総合判定と次のゲート
 
-**pass**。追加の製品・公開・security判断なしに、FEAT-002のDB、HTTP、画面、生成operation、Codex app-server adapter、設定、テストを実装開始できる。
+**pass**。追加の製品、公開、security、運用Decisionを行わずに、FEAT-002を実装できる。特にTASK-002-02は、現行Server compositionを正規の設定/注入/停止順で拡張し、brokerを別OS identityの外部境界として実装できる。
 
-次のゲートは利用者による詳細設計レビューである。承認後に`task-breakdown`へ進む。
+次のゲートは、更新後の詳細設計に対する利用者承認である。承認後にTask Breakdownおよびhandoff最終化を行う。

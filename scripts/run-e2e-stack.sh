@@ -79,6 +79,7 @@ export TOPIC2HTML_GOOGLE_CLIENT_SECRET="e2e-client-secret"
 export TOPIC2HTML_ALLOWED_EMAIL="admin@example.test"
 export TOPIC2HTML_DATABASE_URL="postgres://topic2html:topic2html@127.0.0.1:${database_port}/topic2html?sslmode=disable"
 export TOPIC2HTML_PROTECTION_KEY="e2e-only-protection-key"
+export TOPIC2HTML_CODEX_EXECUTION_BROKER_ENDPOINT="unix:///tmp/topic2html-e2e-broker-$$.sock"
 
 export TOPIC2HTML_E2E_GOOGLE_ENDPOINT_FILE="$google_endpoint_file"
 node "$root_dir/frontend/scripts/e2e-google-double.mjs" &
@@ -99,7 +100,7 @@ wait_for "$TOPIC2HTML_GOOGLE_DISCOVERY_ENDPOINT"
 (
 	cd "$root_dir/backend"
 	go run ./cmd/migrate
-	go build -o "$backend_binary" ./cmd/server
+	go build -tags e2e -o "$backend_binary" ./cmd/server
 )
 "$backend_binary" &
 backend_pid=$!

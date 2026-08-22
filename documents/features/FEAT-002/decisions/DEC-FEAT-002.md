@@ -4,7 +4,7 @@
 
 ## 判断が必要な理由
 
-FEAT-002は管理HTTP、候補と合格済み版の参照、HTML合格条件、Codex app-serverのServer運用設定を追加する。これらは要件から目的は導けるが、wire形式・共有ID・運用上の既定を一意には導けない公開または共有契約である。
+FEAT-002は管理HTTP、候補と合格済み版の参照、HTML合格条件、Codex execution brokerの運用設定を追加する。これらは要件から目的は導けるが、wire形式・共有ID・運用上の既定を一意には導けない公開または共有契約である。
 
 ## 推奨案 A
 
@@ -13,7 +13,7 @@ FEAT-002は管理HTTP、候補と合格済み版の参照、HTML合格条件、C
 1. 管理APIは同期の`POST /admin/generation-requests`と再読込み用の`GET /admin/generation-requests/{id}`を提供する。POSTは形式合格なら201、最大4試行の全失敗なら422と安全な結果記録を返す。認可はFEAT-001のsession / Origin / CSRF契約を使う。
 2. 生成要求、試行、候補の識別子はUUIDとする。修正要求は`source_version_id` UUIDでFEAT-003の参照可能な合格済み版を指定し、Server内の`VersionSource`だけが元HTMLを取得する。候補IDは管理APIの不透明metadataだが、画面へ文字列として表示しない。
 3. 合格HTMLは、空でないUTF-8文字列をHTML5 parserで解析でき、明示的な`<!doctype html>`と開始・終了する`html`、`head`、`body`要素を持つ完全HTML文書とする。内容の品質や外部URLは検査しない。
-4. Serverは必須の`TOPIC2HTML_CODEX_APP_SERVER_EXECUTABLE`と`TOPIC2HTML_CODEX_APP_SERVER_WORKDIR`を起動時検証し、固定argv `app-server --stdio`で起動する。資格情報は専用service accountのapp-server環境だけが扱う。
+4. Go Serverは必須の`TOPIC2HTML_CODEX_EXECUTION_BROKER_ENDPOINT`を起動時に検証し、brokerだけが必須の`TOPIC2HTML_CODEX_APP_SERVER_EXECUTABLE`と`TOPIC2HTML_CODEX_APP_SERVER_WORKDIR`を検証して固定argv `app-server --stdio`で起動する。brokerはGo Serverと異なる専用service accountでCodex資格情報を扱い、両者はprivate local IPCだけで接続する。この配置は[DEC-FEAT-003](DEC-FEAT-003.md)で承認済みである。
 
 ## 代替案 B
 

@@ -5,7 +5,7 @@
 | ID | タイトル | 論理領域 | 依存 |
 | --- | --- | --- | --- |
 | TASK-002-01 | 生成要求のmigration・永続化基盤を実装・検証する | migration・生成記録永続化 | FEAT-001の実装完了 |
-| TASK-002-02 | Codex app-server adapter基盤を実装・検証する | 外部生成境界 | FEAT-001のServer設定・composition基盤 |
+| TASK-002-02 | Codex execution broker・app-server adapter基盤を実装・検証する | 外部生成境界 | FEAT-001のServer composition基盤 |
 | TASK-002-03 | `POST /admin/generation-requests` をend-to-endで実装・検証する | 生成制御・管理mutation・画面送信 | TASK-002-01、TASK-002-02、FEAT-001の管理mutation guard |
 | TASK-002-04 | `GET /admin/generation-requests/{id}` をend-to-endで実装・検証する | 要求記録読取り・管理read・画面再表示 | TASK-002-01、TASK-002-03、FEAT-001の管理read guard |
 
@@ -17,60 +17,62 @@
 
 ## TASK-002-01 生成要求のmigration・永続化基盤を実装・検証する
 
-**目的:** 生成要求、試行履歴、形式合格済みHTML候補を、安全なtransaction・rollback・不変性を持つ共通の永続化契約として提供する。
+**目的:** 生成要求、admit済み試行履歴、形式合格済みHTML候補、ならびにattempt付き／request-onlyの二形態のT4終端を、安全なtransaction・rollback・不変性を持つ共通の永続化契約として提供する。
 
 **関連要件:** REQ-005、REQ-007〜014、BR-003〜005、BR-016、CON-003、CON-004
 
-**作業内容:** migration `003`、生成要求・attempt・candidateの永続化契約、T1〜T4 transaction、読取りaccess map、候補不変性を[DB schema](design/database-schema.md)とoperation資料に従って実現する。POST/GETのHTTP handler、画面、Codex呼出し、生成制御は含めない。
+**作業内容:** migration `003`、生成要求・admit済みattempt・candidateの永続化契約、T1〜T4 transaction、attempt付きT4とrequest-only T4、読取りaccess map、候補不変性を[DB schema](design/database-schema.md)とoperation資料に従って実現する。POST/GETのHTTP handler、画面、Codex呼出し、admission状態の判断、生成制御は含めない。
 
 **受け入れ基準:**
 
 - migration `003`、`generation_requests`、`generation_attempts`、`generated_html_candidates`、制約、index、候補不変triggerが[DB schema](design/database-schema.md)に一致する。migrationはtransactionで適用され、失敗時に全変更をrollbackする。
-- T1は管理sessionのidle期限更新と`running` request、T2は1〜3回目の失敗attempt、T3は成功attempt・candidate・成功request、T4は4回目失敗attempt・最終失敗requestを、設計どおりのtransactionで確定する。外部I/O中にDB transactionを保持しない。
-- T1後の書込み失敗では後続状態を作らず、T1失敗時は外部呼出しを開始できない。T2〜T4の書込み失敗時は候補または後続attemptを追加せず、rollback規則を守る。
-- `(generation_request_id, attempt_number)`の一意性、attempt番号1〜4、request・attemptの状態整合、candidateの1対0..1、候補HTML非空、候補のUPDATE/DELETE拒否、request/attempt/candidateのread-only取得が設計どおりに検証される。
-- 実PostgreSQL integrationでmigration、制約、index、不変trigger、T1〜T4、rollback、read access mapを検証する。候補HTML、未検証出力、Codex内部ID・詳細errorをGET用metadata以外の読取り結果へ出さない。
+- T1は管理sessionのidle期限更新と`running` request、T2は1〜3回目のadmit済み失敗attempt、T3は成功attempt・candidate・成功requestを確定する。T4は4回目またはshutdown中断のadmit済みattemptをfailed attemptとrequestで終端する形態と、`shutdown_rejected`時に新しいattemptを作らずrequestだけを終端する形態を、設計どおりのtransactionで確定する。外部I/O中にDB transactionを保持しない。
+- T1後の書込み失敗では後続状態を作らず、T1失敗時は外部呼出しを開始できない。T2〜T4の書込み失敗時は候補または後続attemptを追加せず、T4のattempt付き／request-onlyのいずれでもrollback後はrequestを`running`のまま残し、新しいfailed attemptを作らない。
+- `(generation_request_id, attempt_number)`の一意性、admit済みattempt番号1〜4、request・attemptの状態整合、request-only T4が既存履歴を変えず0〜3件のattemptを許容すること、candidateの1対0..1、候補HTML非空、候補のUPDATE/DELETE拒否、request/attempt/candidateのread-only取得が設計どおりに検証される。
+- 実PostgreSQL integrationでmigration、制約、index、不変trigger、T1〜T4の二形態、rollback、read access mapを検証する。候補HTML、未検証出力、Codex内部ID・詳細errorをGET用metadata以外の読取り結果へ出さない。
 
 **依存:** FEAT-001が提供するPostgreSQL migration runner、管理session、Server compositionと設定注入基盤。
 
 **対象外・注記:** POST/GETの入力検証・HTTP応答・画面、Codex app-server呼出し、HTML妥当性判定、生成再試行のorchestrationは対象外である。合格候補の採用、version/content/公開状態、VersionSourceの実装はFEAT-003が所有する。
 
-## TASK-002-02 Codex app-server adapter基盤を実装・検証する
+## TASK-002-02 Codex execution broker・app-server adapter基盤を実装・検証する
 
-**目的:** 一試行ごとに独立したCodex app-server子processを安全に管理し、検証前の生成本文または安全な生成不能分類だけを上位の生成operationへ返せる外部境界を提供する。
+**目的:** Go Serverの秘密環境から分離したexecution brokerとprivate local IPCを介し、admission、各attemptのCodex app-server process group、および安全な実行結果だけを管理・返却する外部境界を提供する。
 
 **関連要件:** REQ-004、REQ-009、REQ-010、BR-002、BR-016、NFR-003〜006、CON-001、CON-004
 
-**作業内容:** Server限定の起動時fail-fast設定、固定argv・専用workdir、固定JSON-RPC wire、通知状態機械、候補本文選択、切断後継続、shutdown cleanupを[adapter契約](design/codex-app-server-adapter.md)に従って実現する。POST/GETのHTTP handler、画面、生成要求の永続化、HTML妥当性判定は含めない。
+**作業内容:** Go Serverのbroker clientと、別OS service accountで稼働するexecution brokerのprivate local IPC境界、owner別の起動時fail-fast設定、broker内の固定argv・専用workdir・固定JSON-RPC wire、通知状態機械、候補本文選択、admissionとprocess group cleanupを[adapter契約](design/codex-app-server-adapter.md)および[実行時設定](design/runtime-configuration.md)に従って実現する。brokerは`shutdown_rejected`またはadmit済みattemptの一回だけの安全な結果だけを返す。DB書込み・T4選択・retry・HTTP応答・DB書込み失敗の処理・HTTP client切断後の継続は含めない。
 
 **受け入れ基準:**
 
-- 実行可能ファイルとworkdirはServer限定設定として起動時fail-fast検証され、各attemptは固定argv `app-server --stdio`、専用空workdir、`approvalPolicy: never`、`sandbox: read-only`で独立processとして起動する。利用者入力・環境由来の値をargv、cwd、環境変数へ追加しない。
+- Go Serverはprivate local IPC endpointだけを起動時fail-fast検証し、brokerは実行可能ファイルと専用空workdirを起動時fail-fast検証する。両者は異なるOS service accountで稼働し、brokerだけが固定argv `app-server --stdio`、`approvalPolicy: never`、`sandbox: read-only`で各attemptの独立したprocess groupを起動する。利用者入力・Go Server環境由来の値をargv、cwd、環境変数へ追加または継承しない。
 - `initialize`、`initialized`、`thread/start`、`turn/start`の固定wire、response ID・thread/turn/item IDの照合、開始response前の通知保留と再照合、許可された通知だけを受理する状態機械がadapter契約に一致する。
 - 完了済み単一agentMessageの空でない本文だけを未検証本文として返す。複数・空・非text agentMessage、tool/file/MCP等の非許可item、wire/ID/順序異常、stdio異常、非retry error、turn失敗は`generation_unavailable`として安全に分類する。
-- 外部ID・詳細error・資格情報・未検証本文をログ、永続化、HTTP、画面へ出さない。adapterはapp-server認証値を読み取らず、専用service accountの実行環境だけが扱う。
-- HTTP client切断後もServer所有contextでattemptを継続でき、shutdown時は新規attemptを開始せず、stdin close、wait、terminate、kill、reapの順に子processをcleanupする。正常generationに完了deadlineを置かない。
-- 決定的test doubleによるadapter contract testで、固定wire、通知順序、候補選択、異常分類、切断後継続、shutdown cleanupを検証する。通常CIは実Codex認証情報または外部ネットワークに依存しない。
+- 外部ID・詳細error・資格情報・未検証本文をログ、永続化、HTTP、画面へ出さない。Go Serverはapp-server認証値を読み取らず、brokerはGo ServerのGoogle OAuth secret、PostgreSQL接続、CSRF保護鍵、管理session情報を受け取らない。IPCは外部networkへ公開せず、OS所有者・modeでGo Serverだけをclientに許可する。
+- brokerは一つの直列化点でadmission gateと稼働attempt registryを所有し、shutdown時は新規admissionを`shutdown_rejected`として返す。admit済みattemptはstdin close、新規JSON-RPC送信停止、5秒wait、process groupへのterminate、5秒wait、kill、wait/reapの順に一回だけcleanupし、shutdown中断を一回だけ`generation_unavailable`として返す。正常generationに完了deadlineを置かない。
+- 決定的test doubleによるadapter contract testで、private IPCの許可clientと入出力制限、固定wire、通知順序、候補選択、異常分類、admissionとshutdown競合、close先行時のprocess・registry entryなし、admit先行時の一回だけの中断結果、process group cleanupを検証する。通常CIは実Codex認証情報または外部ネットワークに依存しない。
 
-**依存:** FEAT-001が提供するServer設定・composition基盤。
+**依存:** FEAT-001が提供するServer composition基盤。
 
-**対象外・注記:** request/attempt/candidateの永続化、HTML parserによる形式判定、最大4回の再試行、POST/GETのHTTP応答・画面は対象外である。
+**対象外・注記:** request/attempt/candidateの永続化、T4形態の選択、retry判断、DB書込み失敗の処理、HTTP client切断後の継続、HTML parserによる形式判定、POST/GETのHTTP応答・画面は対象外である。
 
 ## TASK-002-03 `POST /admin/generation-requests` をend-to-endで実装・検証する
 
-**目的:** 管理者が初回または修正の生成要求を同期的に開始し、最初のHTML形式合格結果を安全な候補として確定するか、最大4試行後の安全な失敗として終了できるようにする。
+**目的:** 管理者が初回または修正の生成要求を同期的に開始し、brokerの一回の安全結果をT2／二形態のT4、retry停止、422／500、HTTP client切断後の継続へ写像して、最初のHTML形式合格結果を安全な候補として確定するか、最大4試行後の安全な失敗として終了できるようにする。
 
-**関連要件:** REQ-001〜005、REQ-007〜014、REQ-026、REQ-027、BR-002〜005、BR-016、CON-001、CON-003、CON-004、ASM-001
+**関連要件:** REQ-001〜005、REQ-007〜014、REQ-026、REQ-027、BR-002〜005、BR-016、CON-001、CON-003、CON-004、ASM-001、ASM-002
 
-**作業内容:** `POST /admin/generation-requests` を、承認済みのmutation guard、kind別入力規則、VersionSource照合、生成制御、HTML形式検証、共通永続化・Codex adapterの利用、管理画面の送信状態まで一貫して実現する。operation資料のT1〜T4、HTTP契約、画面設計、runtime configurationに従い、POSTの成功・失敗を同じTask内で自動検証する。
+**作業内容:** `POST /admin/generation-requests` を、承認済みのmutation guard、kind別入力規則、VersionSource照合、生成制御、HTML形式検証、broker結果からT2／attempt付きT4／request-only T4への写像、retry停止、T1〜T4のDB書込み失敗の500化、HTTP client切断後もServer所有execution contextで継続して切断済みconnectionへ応答を書かない制御、共通永続化・Codex adapterの利用、管理画面の送信状態まで一貫して実現する。operation資料のT1〜T4、HTTP契約、画面設計、runtime configurationに従い、POSTの成功・失敗を同じTask内で自動検証する。
 
 **受け入れ基準:**
 
 - POSTはmutation guard通過後にkind別JSONを正規化・検証する。initialはtrim後非空topicと任意instructions、revisionは参照可能な合格済みversionとtrim後非空instructionsだけを受け付け、修正元が利用不可ならrequest作成・外部生成を行わず409 `source_version_not_available`を返す。
-- 共通基盤を用いて、空でないUTF-8文字列をHTML5 parserで解析でき、明示的doctypeと開始・終了するhtml/head/bodyを持つ完全HTML文書だけを合格とする。取得不能と形式不合格は同じ再試行フローで順に記録し、初回を含め最大4回で停止する。最初の合格時だけ候補を保存し、全失敗時は候補を作らず安全な定型要約で終了する。
-- POSTは成功時201、入力不正400、修正元利用不可409、全試行失敗422、内部障害500を[HTTP契約](design/http-contract.md)どおりに返す。各POST requestは別の生成要求として記録し、最終応答に`running`を返さない。JSON、`Cache-Control: no-store`、FEAT-001の401/403/503 error envelopeとsession副作用規則を再利用する。
+- 共通基盤を用いて、空でないUTF-8文字列をHTML5 parserで解析でき、明示的doctypeと開始・終了するhtml/head/bodyを持つ完全HTML文書だけを合格とする。admit済みの取得不能と形式不合格は同じ再試行フローで順に記録し、初回を含め最大4回で停止する。最初の合格時だけ候補を保存し、通常の全試行失敗またはshutdown終端では候補を作らず安全な定型要約で終了する。
+- brokerの通常失敗は1〜3回目にT2と次admissionへ、4回目またはshutdown中断のadmit済みattemptはattempt付きT4へ、`shutdown_rejected`は新しいattemptを作らないrequest-only T4へ決定的に写像する。いずれのT4後もbrokerを再呼出しせずretryを停止する。
+- T1〜T4のいずれのDB書込み失敗も外部retryを行わず500へ写像し、T2〜T4 rollback後に残り得る`running` requestを再開しない。HTTP clientが切断してもT1 commit後のServer所有execution contextでbroker結果、retryまたはT4遷移まで継続し、切断済みconnectionへHTTP responseを書かない。
+- POSTは成功時201、入力不正400、修正元利用不可409、全試行失敗またはshutdown終端422 `generation_failed`、T1〜T4のDB書込み失敗を含む内部障害500を[HTTP契約](design/http-contract.md)どおりに返す。各POST requestは別の生成要求として記録し、最終応答に`running`を返さない。JSON、`Cache-Control: no-store`、FEAT-001の401/403/503 error envelopeとsession副作用規則を再利用する。
 - 管理画面で初回の必須topic・任意instructions、修正の非編集summary・必須instructions、送信中の二重送信防止、201成功、400/409/422/500/401/403/503の安全な表示、422後の新規要求を[画面設計](design/screen-specification.md)どおりに提供する。候補HTML、candidate ID、source version ID、資格情報、session/CSRF値、Codex詳細をDOM、URL、console、analytics、永続ブラウザ保存へ出さない。
-- unit、POST HTTP integration、画面component/E2Eで、初回成功、修正成功、修正元利用不可、HTML不合格・取得不能の最大4試行、認証/Origin/CSRF拒否、busy、候補本文非露出を[テスト戦略](design/test-strategy.md)どおりに検証する。通常CI/E2Eは実Codex認証情報や外部ネットワークに依存しない。
+- unit、POST HTTP integration、画面component/E2Eで、初回成功、修正成功、修正元利用不可、HTML不合格・取得不能の最大4試行、`shutdown_rejected`のrequest-only T4、shutdown中断のattempt付きT4、両者のretry停止と422、T1〜T4 DB書込み失敗時のretryなし500、HTTP client切断後の継続と切断済みconnectionへの非書込み、認証/Origin/CSRF拒否、busy、候補本文非露出を[テスト戦略](design/test-strategy.md)どおりに検証する。通常CI/E2Eは実Codex認証情報や外部ネットワークに依存しない。
 
 **依存:** TASK-002-01、TASK-002-02、FEAT-001の管理mutation guard。
 

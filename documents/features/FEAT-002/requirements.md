@@ -18,8 +18,10 @@
 - 合格済み結果をコンテンツの版として保存し、公開版・履歴・非公開状態を管理すること（FEAT-003）。
 - 生成HTMLを別originから管理者または閲覧者へ実際に表示すること、ならびにその隔離結合検証（FEAT-005）。
 - タグ・掲載場所の管理（FEAT-004）。
-- Codex app-serverの認証方式、配備先、隔離originの具体Hostを選定すること。
+- Codexアカウントの発行・権限・課金主体、隔離originの具体Hostを選定すること。
 
 ## 前提となる判断
 
 [DEC-FEAT-001](decisions/DEC-FEAT-001.md)で選択肢Aが承認された。FEAT-002は検証済みHTML候補を所有し、FEAT-003が候補を合格済み版へ採用し、FEAT-005が候補・版を隔離表示する。この契約により、REQ-006はFEAT-005との共同受入れ条件、REQ-007の修正元はFEAT-003が確立した合格済み版となる。
+
+Codex adapterの安全な実行/認証分離とshutdown契約は、それぞれ[DEC-FEAT-003](decisions/DEC-FEAT-003.md)、[DEC-FEAT-004](decisions/DEC-FEAT-004.md)で承認済みである。子processをGo Serverの環境・UIDから起動する実装は許可しない。

@@ -69,6 +69,49 @@ func TestAdminSessionHTTPPostgresIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	router := ginadapter.NewRouter(service, service, observability.NewDiscardLogger())
+	bootstrapCases := []struct {
+		name          string
+		withSession   bool
+		authenticated bool
+	}{
+		{
+			name:          "returns an anonymous session without a cookie",
+			authenticated: false,
+		},
+		{
+			name:          "returns the authenticated session with a valid cookie",
+			withSession:   true,
+			authenticated: true,
+		},
+	}
+	for _, testCase := range bootstrapCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			request := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/auth/session", nil)
+			if testCase.withSession {
+				request.AddCookie(&http.Cookie{
+					Name:     adminSessionCookieName,
+					Value:    reference,
+					Secure:   true,
+					HttpOnly: true,
+					SameSite: http.SameSiteLaxMode,
+				})
+			}
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			if response.Code != http.StatusOK {
+				t.Fatalf("status=%d", response.Code)
+			}
+			var body struct {
+				Authenticated bool `json:"authenticated"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if body.Authenticated != testCase.authenticated {
+				t.Fatalf("authenticated=%t want=%t", body.Authenticated, testCase.authenticated)
+			}
+		})
+	}
 
 	bootstrap := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/auth/session", nil)
 	bootstrap.AddCookie(&http.Cookie{

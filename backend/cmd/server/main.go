@@ -33,6 +33,7 @@ type dependencies struct {
 	closePool     func(*pgxpool.Pool)
 	newProtection func(string) (*security.Service, error)
 	newService    func(usecaseauth.Dependencies, string, string) (*usecaseauth.Service, error)
+	verifyBroker  func(context.Context, string) error
 }
 
 func productionDependencies() dependencies {
@@ -41,6 +42,7 @@ func productionDependencies() dependencies {
 		closePool:     (*pgxpool.Pool).Close,
 		newProtection: security.New,
 		newService:    usecaseauth.NewService,
+		verifyBroker:  brokerVerifier(),
 	}
 }
 
@@ -83,6 +85,9 @@ func runWithDependencies(lookup LookupEnv, serve func(*http.Server) error, depen
 	config, err := loadConfig(lookup)
 	if err != nil {
 		return apperr.New(apperr.CodeInvalidConfiguration)
+	}
+	if err := dependencies.verifyBroker(context.Background(), config.CodexBrokerEndpoint); err != nil {
+		return apperr.New(apperr.CodeUnavailable)
 	}
 	database, err := dependencies.newPool(context.Background(), config.DatabaseURL)
 	if err != nil {

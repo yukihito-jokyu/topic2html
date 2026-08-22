@@ -432,49 +432,77 @@ func TestStoreFailures(t *testing.T) {
 
 func TestPGXAdapters(t *testing.T) {
 	ctx := context.Background()
-	transaction, err := (pgxPool{
-		begin: func(context.Context) (pgxTransaction, error) {
-			return fakePGXTx{}, nil
+	tests := []struct {
+		name string
+		run  func(*testing.T)
+	}{
+		{
+			name: "transaction adapter delegates operations",
+			run: func(t *testing.T) {
+				transaction, err := (pgxPool{
+					begin: func(context.Context) (pgxTransaction, error) {
+						return fakePGXTx{}, nil
+					},
+				}).Begin(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := transaction.Exec(ctx, "UPDATE example"); err != nil {
+					t.Fatal(err)
+				}
+				if err := transaction.QueryRow(ctx, "SELECT example").Scan(); err != nil {
+					t.Fatal(err)
+				}
+				if err := transaction.Commit(ctx); err != nil {
+					t.Fatal(err)
+				}
+				if err := transaction.Rollback(ctx); err != nil {
+					t.Fatal(err)
+				}
+			},
 		},
-	}).Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
+		{
+			name: "pool adapter reports unavailable database",
+			run: func(t *testing.T) {
+				pool, err := pgxpool.New(ctx, "postgres://localhost:1/topic2html")
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(pool.Close)
+				adapter := newPGXPool(pool)
+				if err := adapter.QueryRow(ctx, "SELECT example").Scan(); err == nil {
+					t.Fatal("expected unavailable database error")
+				}
+				if rows, err := adapter.Query(ctx, "SELECT example"); err == nil {
+					rows.Close()
+					t.Fatal("expected unavailable database error")
+				}
+			},
+		},
+		{
+			name: "store reports unavailable database",
+			run: func(t *testing.T) {
+				pool, err := pgxpool.New(ctx, "postgres://localhost:1/topic2html")
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(pool.Close)
+				store := NewStore(pool)
+				if store == nil {
+					t.Fatal("NewStore returned nil")
+				}
+				failedContext, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
+				t.Cleanup(cancel)
+				if _, err := store.pool.Begin(failedContext); err == nil {
+					t.Fatal("expected unavailable database error")
+				}
+				if err := ApplyAdminAuthSchema(failedContext, pool); err == nil {
+					t.Fatal("expected unavailable database error")
+				}
+			},
+		},
 	}
-	if _, err := transaction.Exec(ctx, "UPDATE example"); err != nil {
-		t.Fatal(err)
-	}
-	if err := transaction.QueryRow(ctx, "SELECT example").Scan(); err != nil {
-		t.Fatal(err)
-	}
-	if err := transaction.Commit(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if err := transaction.Rollback(ctx); err != nil {
-		t.Fatal(err)
-	}
-	pool, err := pgxpool.New(ctx, "postgres://localhost:1/topic2html")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pool.Close()
-	adapter := newPGXPool(pool)
-	if err := adapter.QueryRow(ctx, "SELECT example").Scan(); err == nil {
-		t.Fatal("expected unavailable database error")
-	}
-	if rows, err := adapter.Query(ctx, "SELECT example"); err == nil {
-		rows.Close()
-		t.Fatal("expected unavailable database error")
-	}
-	store := NewStore(pool)
-	if store == nil {
-		t.Fatal("NewStore returned nil")
-	}
-	failedContext, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
-	defer cancel()
-	if _, err := store.pool.Begin(failedContext); err == nil {
-		t.Fatal("expected unavailable database error")
-	}
-	if err := ApplyAdminAuthSchema(failedContext, pool); err == nil {
-		t.Fatal("expected unavailable database error")
+	for _, testCase := range tests {
+		t.Run(testCase.name, testCase.run)
 	}
 }
