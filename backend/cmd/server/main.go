@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"os"
-	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,7 +13,6 @@ import (
 	"github.com/yukihito-jokyu/topic2html/backend/apperr"
 	ginadapter "github.com/yukihito-jokyu/topic2html/backend/handler/gin"
 	"github.com/yukihito-jokyu/topic2html/backend/observability"
-	"github.com/yukihito-jokyu/topic2html/backend/repository/codex"
 	"github.com/yukihito-jokyu/topic2html/backend/repository/google"
 	"github.com/yukihito-jokyu/topic2html/backend/repository/postgres"
 	"github.com/yukihito-jokyu/topic2html/backend/repository/security"
@@ -29,9 +26,6 @@ var (
 	exitProcess                 = os.Exit
 	loadEnvironment             = func() error { return loadDotEnv(func(filename string) error { return godotenv.Load(filename) }) }
 	runServer                   = run
-	dialBroker                  = (&net.Dialer{}).DialContext
-	socketOwnerID               = func(info os.FileInfo) uint32 { return info.Sys().(*syscall.Stat_t).Uid }
-	serverUserID                = os.Geteuid
 )
 
 type dependencies struct {
@@ -48,7 +42,7 @@ func productionDependencies() dependencies {
 		closePool:     (*pgxpool.Pool).Close,
 		newProtection: security.New,
 		newService:    usecaseauth.NewService,
-		verifyBroker:  verifyBrokerEndpoint,
+		verifyBroker:  brokerVerifier(),
 	}
 }
 
@@ -132,25 +126,4 @@ func runWithDependencies(lookup LookupEnv, serve func(*http.Server) error, depen
 	}
 
 	return nil
-}
-
-func verifyBrokerEndpoint(ctx context.Context, endpoint string) error {
-	broker, err := codex.NewClient(endpoint)
-	if err != nil {
-		return err
-	}
-	info, err := os.Stat(broker.Endpoint())
-	if err != nil || info.Mode()&os.ModeSocket == 0 || info.Mode().Perm() != 0660 {
-		return errors.New("broker endpoint permissions are unsafe")
-	}
-	ownerID := socketOwnerID(info)
-	if int(ownerID) == serverUserID() {
-		return errors.New("broker endpoint owner is unsafe")
-	}
-	connection, err := dialBroker(ctx, "unix", broker.Endpoint())
-	if err != nil {
-		return err
-	}
-
-	return connection.Close()
 }
