@@ -48,22 +48,22 @@ business_rules:
     obligation: 失敗要約に内部ログ、資格情報、秘密値、内部データを含めない。
 logical_areas:
   - POST/GETが再利用する生成要求のmigration・永続化基盤
-  - generation operationが再利用するCodex app-server外部境界
+  - generation operationが再利用するprivate IPC execution broker・Codex app-server外部境界
   - POST operationに必要な生成制御、管理mutation、画面送信、検証
   - GET operationに必要な要求記録読取り、管理read、結果再表示、検証
 tasks:
   - id: TASK-002-01
-    purpose: 生成要求、試行履歴、形式合格済みHTML候補のmigration・永続化・transaction・read-only取得の共通基盤を提供する。
+    purpose: 生成要求、admit済み試行履歴、候補、attempt付き／request-only T4のtransaction・rollback・read-only取得を提供する共通基盤。
     acceptance_criteria_reference: features/FEAT-002/tasks.md#task-002-01-生成要求のmigration永続化基盤を実装検証する
     depends_on:
       - FEAT-001 implementation completion
   - id: TASK-002-02
-    purpose: 一試行ごとのCodex app-server子processとJSON-RPC境界を安全に管理する共通adapter基盤を提供する。
-    acceptance_criteria_reference: features/FEAT-002/tasks.md#task-002-02-codex-app-server-adapter基盤を実装検証する
+    purpose: Go Serverから分離したexecution broker、private local IPC、admission、稼働attempt registry、各attemptのCodex app-server process group cleanupを所有し、HTML本文または安全な結果を一回だけ返す共通基盤。
+    acceptance_criteria_reference: features/FEAT-002/tasks.md#task-002-02-codex-execution-brokerapp-server-adapter基盤を実装検証する
     depends_on:
-      - FEAT-001 Server configuration and composition foundation
+      - FEAT-001 Server composition foundation
   - id: TASK-002-03
-    purpose: POST /admin/generation-requestsを、入力から生成制御、HTML検証、HTTP応答、画面送信、operation固有検証までend-to-endで提供する。
+    purpose: POST /admin/generation-requestsを、入力から生成制御、broker結果のT2／二形態T4写像、retry停止、T1〜T4 DB書込み失敗の500化、HTTP client切断後の継続、HTML検証、422を含むHTTP応答、画面送信、operation固有検証までend-to-endで提供する。
     acceptance_criteria_reference: features/FEAT-002/tasks.md#task-002-03-post-admingeneration-requests-をend-to-endで実装検証する
     depends_on:
       - TASK-002-01
@@ -80,18 +80,18 @@ acceptance_criteria:
   source: tasks.mdの各Task受け入れ基準およびdesign/test-strategy.md
   feature_complete:
     - 管理者が初回または合格済み版を修正元とする生成を開始でき、HTML形式合格済みの最初の結果だけが不変候補として保存される。
-    - 取得不能とHTML形式不合格を同じフローで最大4試行まで記録し、成功時に停止し、全失敗時は候補を作らず安全な要約で終了する。
+    - admit済みの取得不能とHTML形式不合格を同じフローで最大4試行まで記録し、成功時に停止する。`shutdown_rejected`はattemptを作らずrequest-only T4で、admit済みshutdown中断はattempt付きT4で終端し、いずれも候補を作らず安全な要約で終了する。
     - POST/GETの同一origin管理API、PostgreSQL状態・transaction、Codex app-server外部境界、管理画面が承認済みcontractに一致し、候補HTML・秘密・外部詳細を露出しない。
     - DB書込み障害、HTTP切断、shutdown、認証・Origin・CSRF障害に安全に収束し、管理者は失敗後に新規要求を開始できる。
     - unit、実PostgreSQL integration、adapter contract、HTTP、UI、E2Eで設計された受入れ条件を検証する。
 constraints:
   - Go Server、React管理画面、PostgreSQL、Codex app-serverを、承認済みのcmd・handler・usecase・repository・domain境界に従って使用する。
-  - "Codex app-serverはServer側のrepository adapterだけが利用し、各attemptは固定argv `app-server --stdio`、専用空workdir、`approvalPolicy: never`、`sandbox: read-only`で独立processとして起動する。"
-  - 実行可能ファイルとworkdirはServer限定設定として起動時fail-fast検証し、資格情報は専用service accountのapp-server実行環境だけが扱う。
-  - 外部I/O中にDB transactionを保持せず、T1〜T4のtransaction・rollback規則、最大4試行、候補不変性を守る。
+  - "Go Serverのrepository adapterはprivate local IPC経由でexecution brokerだけを利用する。brokerは各attemptを固定argv `app-server --stdio`、専用空workdir、`approvalPolicy: never`、`sandbox: read-only`の独立process groupとして起動する。"
+  - Go Serverはprivate IPC endpointを起動時fail-fast検証し、brokerは実行可能ファイルとworkdirを起動時fail-fast検証する。両者は別OS service accountで実行し、Codex資格情報はbrokerだけが扱う。Go Serverの秘密はbroker、app-server、IPC payloadへ渡さない。
+  - 外部I/O中にDB transactionを保持せず、T1〜T4のtransaction・rollback規則、最大4回のadmit済み試行、attempt付きT4とrequest-only T4、候補不変性を守る。TASK-002-02のbrokerはDB書込み、T4選択、retry判断、DB書込み失敗、HTTP応答、HTTP client切断後の継続を所有しない。
   - FEAT-001の管理read/mutation guard、同一origin、JSON、`Cache-Control: no-store`、安全な共通error envelopeを再利用する。
   - 候補HTML、未検証出力、prompt、CSRF/session値、Codex内部ID・詳細error、資格情報をBrowser、URL、DOM、DB試行記録、安全ログ、fixtureへ出さない。
-  - 正常generationに完了deadlineを置かず、HTTP切断後もServer所有contextで継続し、shutdownでは新規attemptを停止して子processをreapする。
+  - 正常generationに完了deadlineを置かない。TASK-002-02のbrokerは直列化されたadmission gateと稼働attempt registryを所有し、shutdown後の新規attemptを`shutdown_rejected`として返し、admit済みprocess groupをclose、wait、terminate、wait、kill、reapの順でcleanupして一回だけ安全な結果を返す。TASK-002-03のPOST operationだけが、HTTP client切断後もT1 commit後のServer所有execution contextでbroker結果、retryまたはT4遷移まで継続し、`shutdown_rejected`をrequest-only T4、admit済みshutdown中断をattempt付きT4へ写像し、いずれもretryせず422へ終端する。T1〜T4 DB書込み失敗はretryせず500へ写像する。
 approved_decisions:
   - id: DEC-ARCH-001
     status: approved
@@ -103,6 +103,10 @@ approved_decisions:
     status: approved
   - id: DEC-FEAT-002
     status: approved
+  - id: DEC-FEAT-003
+    status: approved
+  - id: DEC-FEAT-004
+    status: approved
 interfaces_and_contracts:
   architecture_boundaries:
     reference: design/architecture.md
@@ -110,7 +114,7 @@ interfaces_and_contracts:
   database_and_migration:
     reference: features/FEAT-002/design/database-schema.md
     status: complete
-    summary: migration 003、3 table、制約、index、候補不変trigger、T1〜T4、read access mapを定義済み。
+    summary: migration 003、3 table、制約、index、候補不変trigger、attempt付き／request-only T4を含むT1〜T4、read access mapを定義済み。
   http:
     reference: features/FEAT-002/design/http-contract.md
     status: complete
@@ -139,11 +143,11 @@ design_readiness_audit:
   feature_design: completed
   design_review:
     reference: features/FEAT-002/design-review.md
-    result: pass
+    result: "2026-08-16: R-001補正後の正規要件・承認済みDecision・詳細設計・Task/Handoffを独立監査しpass"
   implementation_readiness_review:
     reference: features/FEAT-002/implementation-readiness-review.md
-    result: pass
-  user_approval: "2026-08-16: 利用者がHTTP契約図の修正を含む詳細設計を明示承認"
+    result: "2026-08-16: R-001補正後のbroker責務分離、T4二形態、既存基盤を独立監査しpass"
+  user_approval: "2026-08-16: 利用者がR-001補正後の詳細設計を明示承認"
   contract_completeness: complete
   required_diagrams: complete
   operation_documentation_coverage: complete
@@ -153,7 +157,7 @@ design_readiness_audit:
     - design/architecture.md
     - .ai/workflow/implementation-skills.yaml
     - features/FEAT-001/implementation-handoff.yaml
-  outcome: 実装者は製品・公開・security判断を再設計せず、永続化、Codex app-server adapter、生成制御、POST/GET、管理画面、検証を実装できる。
+  outcome: 通常のDesign Readiness Auditをpass。R-001補正後の詳細設計、両独立review、利用者承認、Task/Handoffの責務境界を照合済みであり、実装者は製品・公開・security判断を再設計せずに実装できる。
 out_of_scope:
   - 合格候補の採用、version・content・公開状態の管理、VersionSourceの実装（FEAT-003）
   - 候補または版の別origin隔離表示、隔離表示の結合E2E（FEAT-005）

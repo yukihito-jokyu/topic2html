@@ -6,8 +6,8 @@
 | [生成operation](operations/create-generation-request.md) | 初回・修正のI/O、検証、フロー、シーケンス、DB接続。 |
 | [生成要求取得operation](operations/get-generation-request.md) | 再読込み用のread-only I/O、失敗写像、シーケンス。 |
 | [DB schema](database-schema.md) | table、migration、制約、index、access map。 |
-| [実行時設定](runtime-configuration.md) | app-server起動設定、資格情報隔離、運用確認。 |
-| [Codex app-server adapter](codex-app-server-adapter.md) | process所有、v2 JSON-RPC wire、出力抽出、cleanup。 |
+| [実行時設定](runtime-configuration.md) | broker/IPC設定、資格情報隔離、運用確認。 |
+| [Codex app-server adapter](codex-app-server-adapter.md) | brokerのprocess所有、v2 JSON-RPC wire、admission、出力抽出、cleanup。 |
 | [画面設計](screen-specification.md) | 管理生成画面の状態・操作・HTTP対応。 |
 | [テスト戦略](test-strategy.md) | unit、repository、HTTP、UI/E2E、境界の検証。 |
 
