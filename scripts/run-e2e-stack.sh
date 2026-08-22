@@ -6,25 +6,19 @@ container="topic2html-pg-e2e-$$"
 database_port=""
 google_endpoint_file="$(mktemp)"
 backend_binary="$(mktemp)"
-broker_binary="$(mktemp)"
-broker_socket_dir="$(mktemp -d)"
-broker_workdir="$(mktemp -d)"
-broker_pid=""
 google_pid=""
 backend_pid=""
 frontend_pid=""
 
 cleanup() {
-	for pid in "$frontend_pid" "$backend_pid" "$broker_pid" "$google_pid"; do
+	for pid in "$frontend_pid" "$backend_pid" "$google_pid"; do
 		if [[ -n "$pid" ]] && kill -0 "$pid" >/dev/null 2>&1; then
 			kill "$pid" >/dev/null 2>&1 || true
 		fi
 	done
-	wait "$frontend_pid" "$backend_pid" "$broker_pid" "$google_pid" 2>/dev/null || true
+	wait "$frontend_pid" "$backend_pid" "$google_pid" 2>/dev/null || true
 	rm -f "$google_endpoint_file"
 	rm -f "$backend_binary"
-	rm -f "$broker_binary"
-	rm -rf "$broker_socket_dir" "$broker_workdir"
 	docker rm --force "$container" >/dev/null 2>&1 || true
 }
 
@@ -85,46 +79,7 @@ export TOPIC2HTML_GOOGLE_CLIENT_SECRET="e2e-client-secret"
 export TOPIC2HTML_ALLOWED_EMAIL="admin@example.test"
 export TOPIC2HTML_DATABASE_URL="postgres://topic2html:topic2html@127.0.0.1:${database_port}/topic2html?sslmode=disable"
 export TOPIC2HTML_PROTECTION_KEY="e2e-only-protection-key"
-export TOPIC2HTML_CODEX_EXECUTION_BROKER_ENDPOINT="unix://${broker_socket_dir}/broker.sock"
-
-chmod 0755 "$broker_socket_dir"
-chmod 0770 "$broker_workdir"
-
-(
-	cd "$root_dir/backend"
-	go build -o "$broker_binary" ./cmd/codex-broker
-)
-chmod 0755 "$broker_binary"
-
-if ! command -v codex >/dev/null 2>&1; then
-	echo "Codex CLI is required to run the E2E broker" >&2
-	exit 1
-fi
-
-broker_group="$(id -gn)"
-broker_user="nobody"
-if ! id "$broker_user" >/dev/null 2>&1; then
-	echo "E2E broker user is unavailable: $broker_user" >&2
-	exit 1
-fi
-chmod 0770 "$broker_socket_dir"
-chgrp "$broker_group" "$broker_socket_dir"
-sudo -n -u "$broker_user" -g "$broker_group" env \
-	TOPIC2HTML_CODEX_EXECUTION_BROKER_ENDPOINT="$TOPIC2HTML_CODEX_EXECUTION_BROKER_ENDPOINT" \
-	TOPIC2HTML_CODEX_APP_SERVER_EXECUTABLE="$(command -v codex)" \
-	TOPIC2HTML_CODEX_APP_SERVER_WORKDIR="$broker_workdir" \
-	"$broker_binary" &
-broker_pid=$!
-for _ in {1..30}; do
-	if [[ -S "${broker_socket_dir}/broker.sock" ]]; then
-		break
-	fi
-	sleep 1
-done
-if [[ ! -S "${broker_socket_dir}/broker.sock" ]]; then
-	echo "Codex execution broker did not start" >&2
-	exit 1
-fi
+export TOPIC2HTML_CODEX_EXECUTION_BROKER_ENDPOINT="unix:///tmp/topic2html-e2e-broker-$$.sock"
 
 export TOPIC2HTML_E2E_GOOGLE_ENDPOINT_FILE="$google_endpoint_file"
 node "$root_dir/frontend/scripts/e2e-google-double.mjs" &
@@ -145,7 +100,7 @@ wait_for "$TOPIC2HTML_GOOGLE_DISCOVERY_ENDPOINT"
 (
 	cd "$root_dir/backend"
 	go run ./cmd/migrate
-	go build -o "$backend_binary" ./cmd/server
+	go build -tags e2e -o "$backend_binary" ./cmd/server
 )
 "$backend_binary" &
 backend_pid=$!
