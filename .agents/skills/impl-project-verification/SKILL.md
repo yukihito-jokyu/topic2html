@@ -48,6 +48,7 @@ description: topic2htmlのGo、React、PostgreSQL、外部境界を横断する�
 - test doubleとfixtureは本番接続先・実資格情報を必要としない形で管理する。
 - E2EがGoogle/Codexや生成HTML隔離originを扱う場合、対象Featureが所有する承認済み境界を超えない。
 - Go testは、複数の入力・期待結果・失敗経路を持つ対象をtable-driven testで記述する。
+- scripts/check_table_driven_tests.pyでテーブル駆動化の未対応候補を確認する。これは静的な候補検出であり、単一シナリオの並行・資源管理テストは個別に判断する。
 - Backendを対象にする場合、実装者と独立reviewerが同じ`task backend:coverage`またはTask規約で明記された同等スクリプトを実行できるようにする。スクリプトは対象範囲の100%未達、計測失敗、test失敗で非0終了にする。
 
 ## Autonomous Decisions
