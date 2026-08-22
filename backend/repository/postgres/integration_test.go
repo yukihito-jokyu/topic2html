@@ -210,19 +210,30 @@ func TestAdminAuthSchemaIntegration(t *testing.T) {
 		}
 	}
 	for _, check := range []struct {
+		name  string
 		query string
 		hash  auth.Hash
 	}{
-		{`SELECT COUNT(*) FROM admin_oauth_transactions WHERE reference_hash = $1`, boundaryTransaction.ReferenceHash},
-		{`SELECT COUNT(*) FROM admin_sessions WHERE reference_hash = $1`, boundarySession.ReferenceHash},
+		{
+			name:  "keeps the transaction at the retention boundary",
+			query: `SELECT COUNT(*) FROM admin_oauth_transactions WHERE reference_hash = $1`,
+			hash:  boundaryTransaction.ReferenceHash,
+		},
+		{
+			name:  "keeps the session at the retention boundary",
+			query: `SELECT COUNT(*) FROM admin_sessions WHERE reference_hash = $1`,
+			hash:  boundarySession.ReferenceHash,
+		},
 	} {
-		var count int
-		if err := pool.QueryRow(ctx, check.query, check.hash).Scan(&count); err != nil {
-			t.Fatal(err)
-		}
-		if count != 1 {
-			t.Fatalf("24-hour boundary record count = %d, want 1", count)
-		}
+		t.Run(check.name, func(t *testing.T) {
+			var count int
+			if err := pool.QueryRow(ctx, check.query, check.hash).Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if count != 1 {
+				t.Fatalf("24-hour boundary record count = %d, want 1", count)
+			}
+		})
 	}
 }
 
@@ -248,22 +259,36 @@ func TestAdminSessionCSRFCiphertextMigrationRollbackIntegration(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'admin_sessions' AND column_name = 'csrf_token_ciphertext')`).Scan(&ciphertextColumnExists); err != nil {
 		t.Fatal(err)
 	}
-	if ciphertextColumnExists {
-		t.Fatal("rollback left csrf_token_ciphertext column")
-	}
 	var legacyRevoked *time.Time
 	if err := pool.QueryRow(ctx, `SELECT revoked_at FROM admin_sessions WHERE reference_hash = $1`, legacyHash).Scan(&legacyRevoked); err != nil {
 		t.Fatal(err)
-	}
-	if legacyRevoked != nil {
-		t.Fatal("rollback left legacy session revoked")
 	}
 	var migrationCount int
 	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM schema_migrations WHERE version = $1`, AdminSessionCSRFCiphertextMigration).Scan(&migrationCount); err != nil {
 		t.Fatal(err)
 	}
-	if migrationCount != 0 {
-		t.Fatalf("rollback left 002 migration record count=%d", migrationCount)
+	for _, testCase := range []struct {
+		name string
+		got  bool
+	}{
+		{
+			name: "does not leave the ciphertext column",
+			got:  ciphertextColumnExists,
+		},
+		{
+			name: "does not revoke the legacy session",
+			got:  legacyRevoked != nil,
+		},
+		{
+			name: "does not record the failed migration",
+			got:  migrationCount != 0,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			if testCase.got {
+				t.Fatal("rollback left a migration side effect")
+			}
+		})
 	}
 }
 
@@ -329,6 +354,34 @@ func TestGenerationRequestSchemaIntegration(t *testing.T) {
 	failedRecord, found, err := store.FindGenerationRequest(ctx, failedRequest.ID)
 	if err != nil || !found || failedRecord.Request.State != generation.StateCompletedFailed || len(failedRecord.Attempts) != 4 || failedRecord.Candidate != nil {
 		t.Fatalf("failed record=%+v found=%t err=%v", failedRecord, found, err)
+	}
+	for _, testCase := range []struct {
+		name          string
+		record        generation.Record
+		wantState     generation.State
+		wantAttempts  int
+		wantCandidate bool
+	}{
+		{
+			name:          "completed request has a candidate",
+			record:        record,
+			wantState:     generation.StateCompletedSucceeded,
+			wantAttempts:  2,
+			wantCandidate: true,
+		},
+		{
+			name:          "failed request has no candidate",
+			record:        failedRecord,
+			wantState:     generation.StateCompletedFailed,
+			wantAttempts:  4,
+			wantCandidate: false,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			if testCase.record.Request.State != testCase.wantState || len(testCase.record.Attempts) != testCase.wantAttempts || (testCase.record.Candidate != nil) != testCase.wantCandidate {
+				t.Fatalf("record=%+v", testCase.record)
+			}
+		})
 	}
 }
 
@@ -527,10 +580,30 @@ func TestGenerationT1SessionRollbackIntegration(t *testing.T) {
 	}); err == nil || updated {
 		t.Fatalf("T1 failure: updated=%t err=%v", updated, err)
 	}
-	assertSessionIdleDeadline(t, ctx, pool, session.ReferenceHash, session.LastMutationAt, session.IdleExpiresAt)
 	var count int
 	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM generation_requests WHERE id = $1`, request.ID).Scan(&count); err != nil || count != 0 {
 		t.Fatalf("T1 rollback request count=%d err=%v", count, err)
+	}
+	for _, testCase := range []struct {
+		name string
+		run  func(*testing.T)
+	}{
+		{
+			name: "keeps the session deadline",
+			run: func(t *testing.T) {
+				assertSessionIdleDeadline(t, ctx, pool, session.ReferenceHash, session.LastMutationAt, session.IdleExpiresAt)
+			},
+		},
+		{
+			name: "does not create the request",
+			run: func(t *testing.T) {
+				if count != 0 {
+					t.Fatalf("request count=%d", count)
+				}
+			},
+		},
+	} {
+		t.Run(testCase.name, testCase.run)
 	}
 }
 
@@ -588,7 +661,29 @@ func TestGenerationTransactionRollbackIntegration(t *testing.T) {
 	if err := store.CompleteGenerationFailed(ctx, integrationGenerationFailedAttempt(now, failedRequest.ID, 4, 309), now); err == nil {
 		t.Fatal("T4 failure succeeded")
 	}
-	assertGenerationCounts(t, ctx, pool, failedRequest.ID, 3, 0, generation.StateRunning)
+	for _, testCase := range []struct {
+		name       string
+		requestID  string
+		attempts   int
+		candidates int
+	}{
+		{
+			name:       "candidate failure keeps the request running",
+			requestID:  request.ID,
+			attempts:   0,
+			candidates: 0,
+		},
+		{
+			name:       "completion failure keeps previous attempts",
+			requestID:  failedRequest.ID,
+			attempts:   3,
+			candidates: 0,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			assertGenerationCounts(t, ctx, pool, testCase.requestID, testCase.attempts, testCase.candidates, generation.StateRunning)
+		})
+	}
 }
 
 func insertRunningIntegrationRequest(t *testing.T, ctx context.Context, pool *pgxpool.Pool, request generation.Request) {

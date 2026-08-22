@@ -335,18 +335,35 @@ func TestProviderHelpers(t *testing.T) {
 }
 
 func TestVerifyIDTokenRejectsMalformedHeaderEncoding(t *testing.T) {
-	provider := &Provider{
-		config: ProviderConfig{
-			ClientID: "client",
+	tests := []struct {
+		name  string
+		token string
+	}{
+		{
+			name:  "不正なbase64",
+			token: "%%%.payload.signature",
 		},
-		now: func() time.Time {
-			return time.Now().Add(time.Hour)
+		{
+			name:  "JSONではないheader",
+			token: base64.RawURLEncoding.EncodeToString([]byte("not-json")) + ".payload.signature",
 		},
 	}
-	if _, err := provider.verifyIDToken("%%%.payload.signature", Discovery{
-		Issuer: "issuer",
-	}, JWKS{}, nil); err == nil {
-		t.Fatal("malformed header succeeded")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := &Provider{
+				config: ProviderConfig{
+					ClientID: "client",
+				},
+				now: func() time.Time {
+					return time.Now().Add(time.Hour)
+				},
+			}
+			if _, err := provider.verifyIDToken(tt.token, Discovery{
+				Issuer: "issuer",
+			}, JWKS{}, nil); err == nil {
+				t.Fatal("malformed header succeeded")
+			}
+		})
 	}
 }
 
